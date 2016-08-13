@@ -3,6 +3,7 @@
 
 #define BUFF_SIZE 80
 
+typedef struct stats stats;
 struct stats {
     long pid;
     long uptime;
@@ -59,7 +60,7 @@ struct stats {
     long lrutail_reflocked;
 };
 
-void getStats(struct stats *s, int sockfd);
-void setStat(struct stats *s, char* val);
+void getStats(stats *s, int sockfd);
+void setStat(stats *s, const char const val[static 5]);
 
 #endif //MCADMIN_STATS_H

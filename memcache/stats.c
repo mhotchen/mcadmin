@@ -5,14 +5,13 @@
 #include "stats.h"
 
 void
-getStats(struct stats *s, int sockfd)
+getStats(stats *s, int sockfd)
 {
     size_t lineSize = BUFF_SIZE;
 
     char buff[BUFF_SIZE];
-    char line[lineSize];
+    char *line = calloc(lineSize, sizeof(char));
     int recd = 0;
-    memset(line, 0, lineSize);
     int i = 0;
 
     send(sockfd, "stats\n", 6, 0);
@@ -42,8 +41,11 @@ getStats(struct stats *s, int sockfd)
             }
 
             if (i == lineSize) {
+                lineSize;
+                line = realloc(line, lineSize + BUFF_SIZE);
+                memset(line + lineSize, 0, BUFF_SIZE);
                 lineSize += BUFF_SIZE;
-                if (realloc(line, lineSize) == NULL) {
+                if (!line) {
                     perror("Couldn't allocate memory when retrieving stats\n");
                     exit(EXIT_FAILURE);
                 }
@@ -59,7 +61,7 @@ getStats(struct stats *s, int sockfd)
  * A line looks like: STAT pid 4125
  */
 void
-setStat(struct stats *s, char *line)
+setStat(stats *s, const char const line[static 5])
 {
     size_t length = strlen(line);
     int sub = 5;

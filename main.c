@@ -1,24 +1,22 @@
-#include <stdbool.h>
 #include <ncurses.h>
+#include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include "memcache/connect.h"
 #include "memcache/stats.h"
 
-void usage(const char *filename);
-void showStats(WINDOW *win, struct stats *s);
+void usage(const char *const filename);
+void showStats(WINDOW *const win, const stats *const s);
 
 int
-main(const int argc, const char **argv)
+main(const int argc, const char *const argv[argc])
 {
     if (argc != 3) {
         usage(argv[0]);
     }
 
     int sockfd = connectByNetworkSocket(argv[1], argv[2]);
-    struct stats s;
-    memset(&s, 0, sizeof(s));
+    stats s = {0};
 
     initscr();
     cbreak();
@@ -26,8 +24,8 @@ main(const int argc, const char **argv)
     halfdelay(1);
     curs_set(0);
 
-    WINDOW *statsWin = newwin(LINES, COLS / 2, 0, COLS / 2);
-    WINDOW *menuWin = newwin(LINES, COLS / 2, 0, 0);
+    WINDOW *const statsWin = newwin(LINES, COLS / 2, 0, COLS / 2);
+    WINDOW *const menuWin = newwin(LINES, COLS / 2, 0, 0);
 
     bool quit = false;
     int command = 0;
@@ -57,7 +55,7 @@ main(const int argc, const char **argv)
 }
 
 void
-usage(const char *filename)
+usage(const char *const filename)
 {
     fprintf(stderr, "Usage:\n\n");
     fprintf(stderr, "%s [HOST] [PORT]\n\n", filename);
@@ -67,7 +65,7 @@ usage(const char *filename)
 }
 
 void
-showStats(WINDOW *win, struct stats *s)
+showStats(WINDOW *const win, const stats *const s)
 {
     int row = 0;
     mvwprintw(win, ++row, 1, "PID: %ld", s->pid);

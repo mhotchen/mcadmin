@@ -6,9 +6,12 @@
 #include "connect.h"
 
 int
-connectByNetworkSocket(const char *name, const char *port) {
-    struct addrinfo hints, *info;
-    int sockfd, conn = -1;
+connectByNetworkSocket(const char *const name, const char *const port) {
+    struct addrinfo hints = {0};
+    struct addrinfo *info = 0;
+
+    int conn = -1;
+    int sockfd = -1;
 
     memset(&hints, 0, sizeof(hints));
 

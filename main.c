@@ -1,9 +1,10 @@
+#include <cdk/cdk.h>
 #include <ncurses.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <time.h>
 #include "memcache/connect.h"
-#include "memcache/stats.h"
+#include "memcache/commands.h"
 
 void usage(const char *const filename);
 void showStats(WINDOW *const win, const stats *const s);
@@ -15,20 +16,22 @@ main(const int argc, const char *const argv[argc])
         usage(argv[0]);
     }
 
-    int sockfd = connectByNetworkSocket(argv[1], argv[2]);
+    const int sockfd = connectByNetworkSocket(argv[1], argv[2]);
     stats s = {0};
 
-    initscr();
+    WINDOW* cursesWin = initscr();
+    CDKSCREEN* cdkScreen = initCDKScreen(cursesWin);
     cbreak();
     noecho();
-    halfdelay(1);
+    nodelay(cursesWin, true);
     curs_set(0);
 
     WINDOW *const statsWin = newwin(LINES, COLS / 2, 0, COLS / 2);
     WINDOW *const menuWin = newwin(LINES, COLS / 2, 0, 0);
 
-    bool quit = false;
+    const struct timespec loopDelay = {0, 100000000};
     int command = 0;
+    bool quit = false;
 
     while (!quit) {
         getStats(&s, sockfd);
@@ -38,17 +41,65 @@ main(const int argc, const char *const argv[argc])
         wrefresh(statsWin);
 
         box(menuWin, 0, 0);
-        mvwprintw(menuWin, 1, 1, "Press q to quit");
+        mvwprintw(menuWin, 1, 1, "q: quit");
+        mvwprintw(menuWin, 2, 1, "f: flush all content");
+        mvwprintw(menuWin, 3, 1, "/: find");
         wrefresh(menuWin);
 
-        refresh();
         command = getch();
-        if (command == (int) 'q') {
+        if (command == 'q') {
             quit = true;
         }
+        if (command == 'f') {
+            char *buttons[] = {"Yes", "No"};
+            char *message[] = {"Are you sure you want to invalidate all entries in your memcache instance?"};
+            CDKDIALOG *confirm = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_REVERSE, true, true, true);
+            int selection = activateCDKDialog(confirm, 0);
+            if (confirm->exitType == vNORMAL) {
+                switch (selection) {
+                    case 0:
+                        flushAll(sockfd);
+                        break;
+                    case 1:
+                    default:
+                        break;
+                }
+            }
+        }
+        if (command == '/') {
+            char *message = "Type key and press enter. Leave search blank to cancel";
+            char *label = "Key: ";
+            CDKENTRY *search = newCDKEntry(cdkScreen, CENTER, CENTER, message, label, A_NORMAL, '.', vMIXED, 60, 0, 256, true, true);
+            const char const *key = activateCDKEntry(search, 0);
+            if (key != 0) {
+                item i = {0};
+                bool found = getItem(&i, key, sockfd);
+                if (found) {
+                    CDKSCROLL *view = newCDKScroll(cdkScreen, CENTER, CENTER, RIGHT, 80, 80, key, i.value, i.lines, true, A_REVERSE, true, true);
+                    activateCDKScroll(view, 0);
+                    char *buttons[] = {"Close", "Delete"};
+                    char *message[] = {"Do you want to delete this item?"};
+                    CDKDIALOG *confirm = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_REVERSE, true, true, true);
+                    int selection = activateCDKDialog(confirm, 0);
+                    if (confirm->exitType == vNORMAL && selection == 1) {
+                        // TODO delete
+                    }
+                } else {
+                    char *buttons[] = {"Close"};
+                    char *message[] = {"Item not found"};
+                    CDKDIALOG *notFound = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_REVERSE, true, true, true);
+                    activateCDKDialog(notFound, 0);
+                }
+            }
+        }
+
+        refresh();
+
+        nanosleep(&loopDelay, 0);
     }
 
-    endwin();
+    destroyCDKScreen(cdkScreen);
+    endCDK();
 
     close(sockfd);
     exit(EXIT_SUCCESS);

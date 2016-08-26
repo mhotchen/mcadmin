@@ -2,7 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "stats.h"
+#include <time.h>
+#include "commands.h"
+
+static void setStat(stats *s, const char const line[static 5]);
 
 void
 getStats(stats *s, int sockfd)
@@ -11,13 +14,13 @@ getStats(stats *s, int sockfd)
 
     char buff[BUFF_SIZE];
     char *line = calloc(lineSize, sizeof(char));
-    int recd = 0;
+    ssize_t recd = 0;
     int i = 0;
 
-    send(sockfd, "stats\n", 6, 0);
+    send(sockfd, "stats\r\n", 7, 0);
     while (1) {
         memset(buff, 0, BUFF_SIZE);
-        recd = (int) recv(sockfd, buff, BUFF_SIZE, 0);
+        recd = recv(sockfd, buff, BUFF_SIZE, 0);
         if (recd == 0) {
             break;
         }
@@ -41,7 +44,6 @@ getStats(stats *s, int sockfd)
             }
 
             if (i == lineSize) {
-                lineSize;
                 line = realloc(line, lineSize + BUFF_SIZE);
                 memset(line + lineSize, 0, BUFF_SIZE);
                 lineSize += BUFF_SIZE;
@@ -57,10 +59,158 @@ getStats(stats *s, int sockfd)
     }
 }
 
+void
+flushAll(int sockfd)
+{
+    send(sockfd, "flush_all\r\n", 11, 0);
+}
+
+/*
+ * An item looks like: VALUE test 0 4\r\nTEST\r\nEND
+ * where:
+ * test = the key
+ * 0 = flags
+ * 4 = content length in bytes
+ * TEST = actual data which may be multi-line and could contain the string
+ *        \r\nEND\r\n at the end so the content length is important
+ *
+ */
+bool
+getItem(item *itemPtr, const char const key[static 1], int sockfd)
+{
+    int  keyLength = strlen(key);
+    int  commandLength = keyLength + 6; /* strlen("get \r\n") == 6 */
+    int  recd = 0;
+    char buff[BUFF_SIZE];
+    char *segment = calloc(BUFF_SIZE, sizeof(char));
+    char *command = calloc(commandLength, sizeof(char));
+    int  j = keyLength + 7; /* strlen("VALUE  ") == 7 */
+    int  i = 0;
+    int contentPos = 0;
+    int line = 0;
+    int  segmentSize = BUFF_SIZE;
+
+    sprintf(command, "get %s\r\n", key);
+    send(sockfd, command, commandLength, 0);
+
+    bool flagsSet = false;
+    bool lengthSet = false;
+    bool contentSet = false;
+    bool found = false;
+
+    while (1) {
+        memset(buff, 0, BUFF_SIZE);
+        recd = recv(sockfd, buff, BUFF_SIZE, 0);
+        if (recd == 0) {
+            break;
+        }
+
+        if (recd == -1) {
+            perror("Lost connection to memcache server\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (strcmp("END\r\n", buff) == 0) {
+            break;
+        }
+
+        found = true;
+
+        if (j >= BUFF_SIZE) {
+            j -= BUFF_SIZE;
+            continue;
+        }
+
+        if (!flagsSet) {
+            for (; j < BUFF_SIZE; ++j) {
+                if (buff[j] == ' ') {
+                    itemPtr->flags = atoi(segment);
+                    memset(segment, 0, segmentSize);
+                    flagsSet = true;
+                    ++j; /* skip the <space> */
+                    i = 0;
+                    break;
+                }
+
+                segment[i++] = buff[j];
+                if (i == segmentSize) {
+                    segment = realloc(segment, segmentSize + BUFF_SIZE);
+                    memset(segment + segmentSize, 0, BUFF_SIZE);
+                    segmentSize += BUFF_SIZE;
+                }
+            }
+        }
+
+        if (flagsSet && !lengthSet) {
+            for (; j < BUFF_SIZE; ++j) {
+                if (buff[j] == '\r') {
+                    itemPtr->length = atoi(segment);
+                    memset(segment, 0, segmentSize);
+                    lengthSet = true;
+                    j += 2; /* skip the \r\n */
+                    i = 0;
+                    break;
+                }
+
+                segment[i++] = buff[j];
+                if (i == segmentSize) {
+                    segment = realloc(segment, segmentSize + BUFF_SIZE);
+                    memset(segment + segmentSize, 0, BUFF_SIZE);
+                    segmentSize += BUFF_SIZE;
+                }
+            }
+        }
+
+        if (lengthSet && !contentSet) {
+            for (; j < BUFF_SIZE; ++j) {
+                if (contentPos == MAX_CONTENT_LENGTH || contentPos == itemPtr->length) {
+                    itemPtr->value[line] = malloc(i);
+                    itemPtr->lines = line + 1;
+                    memcpy(itemPtr->value[line], segment, i);
+                    contentSet = true;
+                    break;
+                }
+
+                if (buff[j] == '\n') {
+                    itemPtr->value[line] = malloc(i);
+                    memcpy(itemPtr->value[line], segment, i);
+                    memset(segment, 0, segmentSize);
+                    i = 0;
+                    contentPos++;
+                    line++;
+                    continue;
+                }
+
+                segment[i++] = buff[j];
+                if (i == segmentSize) {
+                    segment = realloc(segment, segmentSize + BUFF_SIZE);
+                    memset(segment + segmentSize, 0, BUFF_SIZE);
+                    segmentSize += BUFF_SIZE;
+                }
+
+                contentPos++;
+            }
+        }
+
+        if (contentSet) {
+            break;
+        }
+
+        j = 0;
+    }
+
+    free(segment);
+
+    itemPtr->key = malloc(keyLength);
+    memcpy(itemPtr->key, key, keyLength);
+
+    return found;
+}
+
 /*
  * A line looks like: STAT pid 4125
  */
-void
+static void
 setStat(stats *s, const char const line[static 5])
 {
     size_t length = strlen(line);
@@ -86,7 +236,10 @@ setStat(stats *s, const char const line[static 5])
         value[i - sub] = line[i];
     }
 
-    /* I'm not super happy about this duplication but my C-fu isn't good enough to find a better method */
+    /*
+     * I'm not super happy about this duplication but my C-fu isn't good
+     * enough to find a better method
+     */
 
     if (strcmp(key, "pid") == 0) {
         s->pid = atol(value);

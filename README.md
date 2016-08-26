@@ -5,7 +5,7 @@ The aim of the project is to allow for easier administration of your memcache in
 
 ## Build
 
-Requires ncurses-dev headers (`apt install ncurses-dev`).
+Requires ncurses-dev and libcdk5-dev headers (`apt install ncurses-dev libcdk5-dev`).
 
 ```
 cmake .

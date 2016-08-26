@@ -1,6 +1,9 @@
 #ifndef MCADMIN_STATS_H
 #define MCADMIN_STATS_H
 
+#include <stdbool.h>
+
+#define MAX_CONTENT_LENGTH 10000
 #define BUFF_SIZE 80
 
 typedef struct stats stats;
@@ -60,7 +63,17 @@ struct stats {
     long lrutail_reflocked;
 };
 
+typedef struct item item;
+struct item {
+    char* key;
+    char* value[MAX_CONTENT_LENGTH];
+    int length;
+    int lines;
+    int flags;
+};
+
 void getStats(stats *s, int sockfd);
-void setStat(stats *s, const char const val[static 5]);
+void flushAll(int sockfd);
+bool getItem(item *itemPtr, const char const key[static 1], int sockfd);
 
 #endif //MCADMIN_STATS_H

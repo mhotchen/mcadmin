@@ -75,5 +75,6 @@ struct item {
 void getStats(stats *s, int sockfd);
 void flushAll(int sockfd);
 bool getItem(item *itemPtr, const char const key[static 1], int sockfd);
+bool deleteItem(const char const key[static 1], int sockfd);
 
 #endif //MCADMIN_STATS_H

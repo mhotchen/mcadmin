@@ -31,7 +31,7 @@ getStats(stats *s, int sockfd)
         }
 
         for (int j = 0; j < BUFF_SIZE; ++j) {
-            if (buff[j] == '\r' && j + 1 < BUFF_SIZE && buff[j + 1] == '\n') {
+            if (buff[j] == '\r') {
                 if (strcmp(line, "END") == 0) {
                     return;
                 }
@@ -40,6 +40,10 @@ getStats(stats *s, int sockfd)
                 memset(line, 0, lineSize);
                 i = 0;
                 ++j;
+                continue;
+            }
+
+            if (buff[j] == '\n') {
                 continue;
             }
 
@@ -172,6 +176,7 @@ getItem(item *itemPtr, const char const key[static 1], int sockfd)
                 }
 
                 if (buff[j] == '\n') {
+                    segment[i++] = 0;
                     itemPtr->value[line] = malloc(i);
                     memcpy(itemPtr->value[line], segment, i);
                     memset(segment, 0, segmentSize);
@@ -205,6 +210,32 @@ getItem(item *itemPtr, const char const key[static 1], int sockfd)
     memcpy(itemPtr->key, key, keyLength);
 
     return found;
+}
+
+bool
+deleteItem(const char const key[static 1], int sockfd)
+{
+    int commandLength = strlen(key) + 9;
+    char *command = calloc(commandLength, 0);
+    sprintf(command, "delete %s\r\n", key);
+    send(sockfd, command, commandLength, 0);
+    char buff[11] = {0};
+    int recd = recv(sockfd, buff, 11, 0);
+
+    if (recd == 0) {
+        return false;
+    }
+
+    if (recd == -1) {
+        perror("Lost connection to memcache server\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (strcmp("DELETED\r\n", buff) == 0) {
+        return true;
+    }
+
+    return false;
 }
 
 /*
@@ -335,6 +366,9 @@ setStat(stats *s, const char const line[static 5])
     }
     else if(strcmp(key, "auth_errors") == 0) {
         s->auth_errors = atol(value);
+    }
+    else if(strcmp(key, "bytes") == 0) {
+        s->bytes = atol(value);
     }
     else if(strcmp(key, "bytes_read") == 0) {
         s->bytes_read = atol(value);

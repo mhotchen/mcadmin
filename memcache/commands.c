@@ -5,10 +5,10 @@
 #include <time.h>
 #include "commands.h"
 
-static void setStat(stats *s, const char const line[static 5]);
+static void setStat(Stats *stats, const char const line[static 5]);
 
 void
-getStats(stats *s, int sockfd)
+getStats(Stats *stats, int sockfd)
 {
     size_t lineSize = BUFF_SIZE;
 
@@ -33,10 +33,11 @@ getStats(stats *s, int sockfd)
         for (int j = 0; j < BUFF_SIZE; ++j) {
             if (buff[j] == '\r') {
                 if (strcmp(line, "END") == 0) {
+                    free(line);
                     return;
                 }
 
-                setStat(s, line);
+                setStat(stats, line);
                 memset(line, 0, lineSize);
                 i = 0;
                 ++j;
@@ -80,22 +81,23 @@ flushAll(int sockfd)
  *
  */
 bool
-getItem(item *itemPtr, const char const key[static 1], int sockfd)
+getItem(Item *item, const char const key[static 1], int sockfd)
 {
-    int  keyLength = strlen(key);
-    int  commandLength = keyLength + 6; /* strlen("get \r\n") == 6 */
-    int  recd = 0;
-    char buff[BUFF_SIZE];
-    char *segment = calloc(BUFF_SIZE, sizeof(char));
-    char *command = calloc(commandLength, sizeof(char));
-    int  j = keyLength + 7; /* strlen("VALUE  ") == 7 */
-    int  i = 0;
-    int contentPos = 0;
-    int line = 0;
-    int  segmentSize = BUFF_SIZE;
+    size_t  keyLength = strlen(key);
+    size_t  commandLength = keyLength + 6; /* strlen("get \r\n") == 6 */
+    ssize_t recd = 0;
+    char    buff[BUFF_SIZE];
+    char    *segment = calloc(BUFF_SIZE, sizeof(char));
+    char    *command = calloc(commandLength, sizeof(char));
+    size_t  j = keyLength + 7; /* strlen("VALUE  ") == 7 */
+    size_t  i = 0;
+    int     contentPos = 0;
+    int     line = 0;
+    size_t  segmentSize = BUFF_SIZE;
 
     sprintf(command, "get %s\r\n", key);
     send(sockfd, command, commandLength, 0);
+    free(command);
 
     bool flagsSet = false;
     bool lengthSet = false;
@@ -128,7 +130,7 @@ getItem(item *itemPtr, const char const key[static 1], int sockfd)
         if (!flagsSet) {
             for (; j < BUFF_SIZE; ++j) {
                 if (buff[j] == ' ') {
-                    itemPtr->flags = atoi(segment);
+                    item->flags = atoi(segment);
                     memset(segment, 0, segmentSize);
                     flagsSet = true;
                     ++j; /* skip the <space> */
@@ -148,7 +150,7 @@ getItem(item *itemPtr, const char const key[static 1], int sockfd)
         if (flagsSet && !lengthSet) {
             for (; j < BUFF_SIZE; ++j) {
                 if (buff[j] == '\r') {
-                    itemPtr->length = atoi(segment);
+                    item->length = atoi(segment);
                     memset(segment, 0, segmentSize);
                     lengthSet = true;
                     j += 2; /* skip the \r\n */
@@ -167,18 +169,18 @@ getItem(item *itemPtr, const char const key[static 1], int sockfd)
 
         if (lengthSet && !contentSet) {
             for (; j < BUFF_SIZE; ++j) {
-                if (contentPos == MAX_CONTENT_LENGTH || contentPos == itemPtr->length) {
-                    itemPtr->value[line] = malloc(i);
-                    itemPtr->lines = line + 1;
-                    memcpy(itemPtr->value[line], segment, i);
+                if (contentPos == MAX_CONTENT_LENGTH || contentPos == item->length) {
+                    item->value[line] = malloc(i);
+                    item->lines = line + 1;
+                    memcpy(item->value[line], segment, i);
                     contentSet = true;
                     break;
                 }
 
                 if (buff[j] == '\n') {
                     segment[i++] = 0;
-                    itemPtr->value[line] = malloc(i);
-                    memcpy(itemPtr->value[line], segment, i);
+                    item->value[line] = malloc(i);
+                    memcpy(item->value[line], segment, i);
                     memset(segment, 0, segmentSize);
                     i = 0;
                     contentPos++;
@@ -206,8 +208,8 @@ getItem(item *itemPtr, const char const key[static 1], int sockfd)
 
     free(segment);
 
-    itemPtr->key = malloc(keyLength);
-    memcpy(itemPtr->key, key, keyLength);
+    memcpy(item->key, key, keyLength);
+    item->key[keyLength] = '\0';
 
     return found;
 }
@@ -215,12 +217,16 @@ getItem(item *itemPtr, const char const key[static 1], int sockfd)
 bool
 deleteItem(const char const key[static 1], int sockfd)
 {
-    int commandLength = strlen(key) + 9;
-    char *command = calloc(commandLength, 0);
+    size_t  commandLength = strlen(key) + 9;
+    ssize_t recd = 0;
+    char    *command = calloc(commandLength, 0);
+    char    buff[11] = {0};
+
     sprintf(command, "delete %s\r\n", key);
     send(sockfd, command, commandLength, 0);
-    char buff[11] = {0};
-    int recd = recv(sockfd, buff, 11, 0);
+    free(command);
+
+    recd = recv(sockfd, buff, 11, 0);
 
     if (recd == 0) {
         return false;
@@ -242,7 +248,7 @@ deleteItem(const char const key[static 1], int sockfd)
  * A line looks like: STAT pid 4125
  */
 static void
-setStat(stats *s, const char const line[static 5])
+setStat(Stats *stats, const char const line[static 5])
 {
     size_t length = strlen(line);
     int sub = 5;
@@ -273,134 +279,134 @@ setStat(stats *s, const char const line[static 5])
      */
 
     if (strcmp(key, "pid") == 0) {
-        s->pid = atol(value);
+        stats->pid = atol(value);
     }
     else if(strcmp(key, "uptime") == 0) {
-        s->uptime = atol(value);
+        stats->uptime = atol(value);
     }
     else if(strcmp(key, "time") == 0) {
-        s->time = atol(value);
+        stats->time = atol(value);
     }
     else if(strcmp(key, "version") == 0) {
-        s->version = (char *) malloc(sizeof(value));
-        strcpy(s->version, value);
+        stats->version = (char *) malloc(sizeof(value));
+        strcpy(stats->version, value);
     }
     else if(strcmp(key, "libevent") == 0) {
-        s->libevent = (char *) malloc(sizeof(value));
-        strcpy(s->version, value);
+        stats->libevent = (char *) malloc(sizeof(value));
+        strcpy(stats->version, value);
     }
     else if(strcmp(key, "pointer_size") == 0) {
-        s->pointer_size = atol(value);
+        stats->pointer_size = atol(value);
     }
     else if(strcmp(key, "rusage_user") == 0) {
-        s->rusage_user = atof(value);
+        stats->rusage_user = atof(value);
     }
     else if(strcmp(key, "rusage_system") == 0) {
-        s->rusage_system = atof(value);
+        stats->rusage_system = atof(value);
     }
     else if(strcmp(key, "curr_connections") == 0) {
-        s->curr_connections = atol(value);
+        stats->curr_connections = atol(value);
     }
     else if(strcmp(key, "total_connections") == 0) {
-        s->total_connections = atol(value);
+        stats->total_connections = atol(value);
     }
     else if(strcmp(key, "connection_structures") == 0) {
-        s->connection_structures = atol(value);
+        stats->connection_structures = atol(value);
     }
     else if(strcmp(key, "reserved_fds") == 0) {
-        s->reserved_fds = atol(value);
+        stats->reserved_fds = atol(value);
     }
     else if(strcmp(key, "cmd_get") == 0) {
-        s->cmd_get = atol(value);
+        stats->cmd_get = atol(value);
     }
     else if(strcmp(key, "cmd_set") == 0) {
-        s->cmd_set = atol(value);
+        stats->cmd_set = atol(value);
     }
     else if(strcmp(key, "cmd_flush") == 0) {
-        s->cmd_flush = atol(value);
+        stats->cmd_flush = atol(value);
     }
     else if(strcmp(key, "cmd_touch") == 0) {
-        s->cmd_touch = atol(value);
+        stats->cmd_touch = atol(value);
     }
     else if(strcmp(key, "get_hits") == 0) {
-        s->get_hits = atol(value);
+        stats->get_hits = atol(value);
     }
     else if(strcmp(key, "get_misses") == 0) {
-        s->get_misses = atol(value);
+        stats->get_misses = atol(value);
     }
     else if(strcmp(key, "delete_misses") == 0) {
-        s->delete_misses = atol(value);
+        stats->delete_misses = atol(value);
     }
     else if(strcmp(key, "delete_hits") == 0) {
-        s->delete_hits = atol(value);
+        stats->delete_hits = atol(value);
     }
     else if(strcmp(key, "incr_misses") == 0) {
-        s->incr_misses = atol(value);
+        stats->incr_misses = atol(value);
     }
     else if(strcmp(key, "incr_hits") == 0) {
-        s->incr_hits = atol(value);
+        stats->incr_hits = atol(value);
     }
     else if(strcmp(key, "decr_misses") == 0) {
-        s->decr_misses = atol(value);
+        stats->decr_misses = atol(value);
     }
     else if(strcmp(key, "decr_hits") == 0) {
-        s->decr_hits = atol(value);
+        stats->decr_hits = atol(value);
     }
     else if(strcmp(key, "cas_misses") == 0) {
-        s->cas_misses = atol(value);
+        stats->cas_misses = atol(value);
     }
     else if(strcmp(key, "cas_hits") == 0) {
-        s->cas_hits = atol(value);
+        stats->cas_hits = atol(value);
     }
     else if(strcmp(key, "cas_badval") == 0) {
-        s->cas_badval = atol(value);
+        stats->cas_badval = atol(value);
     }
     else if(strcmp(key, "touch_hits") == 0) {
-        s->touch_hits = atol(value);
+        stats->touch_hits = atol(value);
     }
     else if(strcmp(key, "touch_misses") == 0) {
-        s->touch_misses = atol(value);
+        stats->touch_misses = atol(value);
     }
     else if(strcmp(key, "auth_cmds") == 0) {
-        s->auth_cmds = atol(value);
+        stats->auth_cmds = atol(value);
     }
     else if(strcmp(key, "auth_errors") == 0) {
-        s->auth_errors = atol(value);
+        stats->auth_errors = atol(value);
     }
     else if(strcmp(key, "bytes") == 0) {
-        s->bytes = atol(value);
+        stats->bytes = atol(value);
     }
     else if(strcmp(key, "bytes_read") == 0) {
-        s->bytes_read = atol(value);
+        stats->bytes_read = atol(value);
     }
     else if(strcmp(key, "bytes_written") == 0) {
-        s->bytes_written = atol(value);
+        stats->bytes_written = atol(value);
     }
     else if(strcmp(key, "limit_maxbytes") == 0) {
-        s->limit_maxbytes = atol(value);
+        stats->limit_maxbytes = atol(value);
     }
     else if(strcmp(key, "accepting_conns") == 0) {
-        s->accepting_conns = atol(value);
+        stats->accepting_conns = atol(value);
     }
     else if(strcmp(key, "listen_disabled_num") == 0) {
-        s->listen_disabled_num = atol(value);
+        stats->listen_disabled_num = atol(value);
     }
     else if(strcmp(key, "time_in_listen_disabled_us") == 0) {
-        s->time_in_listen_disabled_us = atol(value);
+        stats->time_in_listen_disabled_us = atol(value);
     }
     else if(strcmp(key, "threads") == 0) {
-        s->threads = atol(value);
+        stats->threads = atol(value);
     }
     else if(strcmp(key, "conn_yields") == 0) {
-        s->conn_yields = atol(value);
+        stats->conn_yields = atol(value);
     }
     else if(strcmp(key, "hash_power_level") == 0) {
-        s->hash_power_level = atol(value);
+        stats->hash_power_level = atol(value);
     }
     else if(strcmp(key, "hash_bytes") == 0) {
-        s->hash_bytes = atol(value);
+        stats->hash_bytes = atol(value);
     }
     else if(strcmp(key, "hash_is_expanding") == 0) {
-        s->hash_is_expanding = atol(value);
+        stats->hash_is_expanding = atol(value);
     }
 }

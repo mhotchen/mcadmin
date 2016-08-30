@@ -6,9 +6,9 @@
 #include "memcache/connect.h"
 #include "memcache/commands.h"
 
-void usage(const char *const filename);
-void showStats(WINDOW *const win, const stats *const s);
-void refreshWindows(WINDOW *const windows[], int count);
+void usage(const char filename[static 1]);
+void showStats(WINDOW *const win, const Stats *const stats);
+void refreshWindows(int count, WINDOW *const windows[count]);
 
 int
 main(const int argc, const char *const argv[argc])
@@ -18,7 +18,7 @@ main(const int argc, const char *const argv[argc])
     }
 
     const int sockfd = connectByNetworkSocket(argv[1], argv[2]);
-    stats s = {0};
+    Stats stats = {0};
 
     WINDOW* cursesWin = initscr();
     CDKSCREEN* cdkScreen = initCDKScreen(cursesWin);
@@ -49,7 +49,7 @@ main(const int argc, const char *const argv[argc])
         if (command == 'f') {
             char *buttons[] = {"Yes", "No"};
             char *message[] = {"Are you sure you want to invalidate all entries in your memcache instance?"};
-            CDKDIALOG *confirm = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_STANDOUT, true, true, false);
+            CDKDIALOG *confirm = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_REVERSE, true, true, false);
             int selection = activateCDKDialog(confirm, 0);
             if (confirm->exitType == vNORMAL && selection == 0) {
                 flushAll(sockfd);
@@ -58,29 +58,30 @@ main(const int argc, const char *const argv[argc])
         if (command == '/') {
             char *message = "Type key and press enter. Leave search blank to cancel";
             char *label = "Key: ";
-            CDKENTRY *search = newCDKEntry(cdkScreen, CENTER, CENTER, message, label, A_STANDOUT, '.', vMIXED, 60, 0, 256, true, false);
+            CDKENTRY *search = newCDKEntry(cdkScreen, CENTER, CENTER, message, label, A_REVERSE, '.', vMIXED, 60, 0, 256, true, false);
             char *key = activateCDKEntry(search, 0);
             if (key != 0 && strcmp(key, "") != 0) {
-                item i = {0};
-                bool found = getItem(&i, key, sockfd);
+                Item item = {0};
+                bool found = getItem(&item, key, sockfd);
                 if (found) {
                     char *buttons[] = {"View", "Delete", "Cancel"};
                     char *message[] = {"What action would you like to take with this item?"};
-                    CDKDIALOG *confirm = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 3, A_STANDOUT, true, true, false);
+                    CDKDIALOG *confirm = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 3, A_REVERSE, true, true, false);
                     int selection = activateCDKDialog(confirm, 0);
                     if (confirm->exitType == vNORMAL) {
                         switch (selection) {
                             case 0: {
-                                CDKSCROLL *view = newCDKScroll(cdkScreen, CENTER, CENTER, RIGHT, 80, 80, key, i.value, i.lines, true, A_STANDOUT, true, false);
+                                char *title = calloc(sizeof(item.key) + 2 + 14, 0); /* 2 bytes for the 32bit flag, 14 for the extra characters below */
+                                sprintf(title, "Key: %s, flags: %d", item.key, item.flags);
+                                CDKSCROLL *view = newCDKScroll(cdkScreen, CENTER, CENTER, RIGHT, 80, 80, title, item.value, item.lines, true, A_REVERSE, true, false);
                                 activateCDKScroll(view, 0);
+                                free(title);
                                 break;
                             }
                             case 1: {
                                 char *buttons[] = {"Close"};
-                                char *message[] = {deleteItem(key, sockfd) ? "Deleted"
-                                                                           : "Couldn't delete. Maybe the item doesn't exist anymore"};
-                                CDKDIALOG *notFound = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2,
-                                                                   A_STANDOUT, true, true, false);
+                                char *message[] = {deleteItem(key, sockfd) ? "Deleted" : "Couldn't delete. Maybe the item doesn't exist anymore"};
+                                CDKDIALOG *notFound = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_REVERSE, true, true, false);
                                 activateCDKDialog(notFound, 0);
                                 break;
                             }
@@ -92,19 +93,19 @@ main(const int argc, const char *const argv[argc])
                 } else {
                     char *buttons[] = {"Close"};
                     char *message[] = {"Item not found"};
-                    CDKDIALOG *notFound = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_STANDOUT, true, true, false);
+                    CDKDIALOG *notFound = newCDKDialog(cdkScreen, CENTER, CENTER, message, 1, buttons, 2, A_REVERSE, true, true, false);
                     activateCDKDialog(notFound, 0);
                 }
             }
         }
 
         if (command != -1) {
-            refreshWindows(windows, sizeof(windows) / sizeof(windows[0]));
+            refreshWindows(sizeof(windows) / sizeof(windows[0]), windows);
         }
 
         if (time(0) - lastStatsRefresh > 3) {
-            getStats(&s, sockfd);
-            showStats(statsWin, &s);
+            getStats(&stats, sockfd);
+            showStats(statsWin, &stats);
             wrefresh(statsWin);
             lastStatsRefresh = time(0);
         }
@@ -120,7 +121,7 @@ main(const int argc, const char *const argv[argc])
 }
 
 void
-usage(const char *const filename)
+usage(const char filename[static 1])
 {
     fprintf(stderr, "Usage:\n\n");
     fprintf(stderr, "%s [HOST] [PORT]\n\n", filename);
@@ -130,20 +131,20 @@ usage(const char *const filename)
 }
 
 void
-showStats(WINDOW *const win, const stats *const s)
+showStats(WINDOW *const win, const Stats *const stats)
 {
     int row = 0;
-    mvwprintw(win,   row, 0, "Memcache %s, PID: %ld, uptime: %ld", s->version, s->pid, s->uptime);
-    mvwprintw(win, ++row, 0, "CPU time: %.2f (usr), %.2f (sys)", s->rusage_user, s->rusage_system);
-    mvwprintw(win, ++row, 0, "Memory: used: %ld bytes, available: %ld bytes", s->bytes, s->limit_maxbytes);
-    mvwprintw(win, ++row, 0, "Network: read: %ld bytes, written: %ld bytes", s->bytes_read, s->bytes_written);
-    mvwprintw(win, ++row, 0, "Connections: %ld (curr), %ld (tot)", s->curr_connections, s->total_connections);
-    mvwprintw(win, ++row, 0, "Commands: set: %ld, get: %ldh/%ldm, delete %ldh/%ldm, cas %ldh/%ldm/%ldb", s->cmd_set, s->get_hits, s->get_misses, s->delete_hits, s->delete_misses, s->cas_hits, s->cas_misses, s->cas_badval);
-    mvwprintw(win, ++row, 0, "          incr: %ldh/%ldm, decr %ldh/%ldm, touch %ldh/%ldm", s->incr_hits, s->incr_misses, s->decr_hits, s->decr_misses, s->touch_hits, s->touch_misses);
+    mvwprintw(win,   row, 0, "Memcache %s, PID: %ld, uptime: %ld", stats->version, stats->pid, stats->uptime);
+    mvwprintw(win, ++row, 0, "CPU time: %.2f (usr), %.2f (sys)", stats->rusage_user, stats->rusage_system);
+    mvwprintw(win, ++row, 0, "Memory: used: %ld bytes, available: %ld bytes", stats->bytes, stats->limit_maxbytes);
+    mvwprintw(win, ++row, 0, "Network: read: %ld bytes, written: %ld bytes", stats->bytes_read, stats->bytes_written);
+    mvwprintw(win, ++row, 0, "Connections: %ld (curr), %ld (tot)", stats->curr_connections, stats->total_connections);
+    mvwprintw(win, ++row, 0, "Commands: set: %ld, get: %ldh/%ldm, delete %ldh/%ldm, cas %ldh/%ldm/%ldb", stats->cmd_set, stats->get_hits, stats->get_misses, stats->delete_hits, stats->delete_misses, stats->cas_hits, stats->cas_misses, stats->cas_badval);
+    mvwprintw(win, ++row, 0, "          incr: %ldh/%ldm, decr %ldh/%ldm, touch %ldh/%ldm", stats->incr_hits, stats->incr_misses, stats->decr_hits, stats->decr_misses, stats->touch_hits, stats->touch_misses);
 }
 
 void
-refreshWindows(WINDOW *const windows[], int count)
+refreshWindows(int count, WINDOW *const windows[count])
 {
     for (int i = 0; i < count; ++i) {
         refreshCDKWindow(windows[i]);

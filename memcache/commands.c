@@ -251,11 +251,11 @@ static void
 setStat(Stats *stats, const char const line[static 5])
 {
     size_t length = strlen(line);
-    int sub = 5;
-    int i = sub;
+    int    sub = 5;
+    int    i = sub;
+    char   key[length];
+    char   value[length];
 
-    char key[length];
-    char value[length];
     memset(key, 0, length);
     memset(value, 0, length);
 
@@ -280,133 +280,91 @@ setStat(Stats *stats, const char const line[static 5])
 
     if (strcmp(key, "pid") == 0) {
         stats->pid = atol(value);
-    }
-    else if(strcmp(key, "uptime") == 0) {
+    } else if (strcmp(key, "uptime") == 0) {
         stats->uptime = atol(value);
-    }
-    else if(strcmp(key, "time") == 0) {
+    } else if (strcmp(key, "time") == 0) {
         stats->time = atol(value);
-    }
-    else if(strcmp(key, "version") == 0) {
-        stats->version = (char *) malloc(sizeof(value));
+    } else if (strcmp(key, "version") == 0) {
+        stats->version = malloc(sizeof(value));
         strcpy(stats->version, value);
-    }
-    else if(strcmp(key, "libevent") == 0) {
-        stats->libevent = (char *) malloc(sizeof(value));
+    } else if (strcmp(key, "libevent") == 0) {
+        stats->libevent = malloc(sizeof(value));
         strcpy(stats->version, value);
-    }
-    else if(strcmp(key, "pointer_size") == 0) {
+    } else if (strcmp(key, "pointer_size") == 0) {
         stats->pointer_size = atol(value);
-    }
-    else if(strcmp(key, "rusage_user") == 0) {
+    } else if (strcmp(key, "rusage_user") == 0) {
         stats->rusage_user = atof(value);
-    }
-    else if(strcmp(key, "rusage_system") == 0) {
+    } else if (strcmp(key, "rusage_system") == 0) {
         stats->rusage_system = atof(value);
-    }
-    else if(strcmp(key, "curr_connections") == 0) {
+    } else if (strcmp(key, "curr_connections") == 0) {
         stats->curr_connections = atol(value);
-    }
-    else if(strcmp(key, "total_connections") == 0) {
+    } else if (strcmp(key, "total_connections") == 0) {
         stats->total_connections = atol(value);
-    }
-    else if(strcmp(key, "connection_structures") == 0) {
+    } else if (strcmp(key, "connection_structures") == 0) {
         stats->connection_structures = atol(value);
-    }
-    else if(strcmp(key, "reserved_fds") == 0) {
+    } else if (strcmp(key, "reserved_fds") == 0) {
         stats->reserved_fds = atol(value);
-    }
-    else if(strcmp(key, "cmd_get") == 0) {
+    } else if (strcmp(key, "cmd_get") == 0) {
         stats->cmd_get = atol(value);
-    }
-    else if(strcmp(key, "cmd_set") == 0) {
+    } else if (strcmp(key, "cmd_set") == 0) {
         stats->cmd_set = atol(value);
-    }
-    else if(strcmp(key, "cmd_flush") == 0) {
+    } else if (strcmp(key, "cmd_flush") == 0) {
         stats->cmd_flush = atol(value);
-    }
-    else if(strcmp(key, "cmd_touch") == 0) {
+    } else if (strcmp(key, "cmd_touch") == 0) {
         stats->cmd_touch = atol(value);
-    }
-    else if(strcmp(key, "get_hits") == 0) {
+    } else if (strcmp(key, "get_hits") == 0) {
         stats->get_hits = atol(value);
-    }
-    else if(strcmp(key, "get_misses") == 0) {
+    } else if (strcmp(key, "get_misses") == 0) {
         stats->get_misses = atol(value);
-    }
-    else if(strcmp(key, "delete_misses") == 0) {
+    } else if (strcmp(key, "delete_misses") == 0) {
         stats->delete_misses = atol(value);
-    }
-    else if(strcmp(key, "delete_hits") == 0) {
+    } else if (strcmp(key, "delete_hits") == 0) {
         stats->delete_hits = atol(value);
-    }
-    else if(strcmp(key, "incr_misses") == 0) {
+    } else if (strcmp(key, "incr_misses") == 0) {
         stats->incr_misses = atol(value);
-    }
-    else if(strcmp(key, "incr_hits") == 0) {
+    } else if (strcmp(key, "incr_hits") == 0) {
         stats->incr_hits = atol(value);
-    }
-    else if(strcmp(key, "decr_misses") == 0) {
+    } else if (strcmp(key, "decr_misses") == 0) {
         stats->decr_misses = atol(value);
-    }
-    else if(strcmp(key, "decr_hits") == 0) {
+    } else if (strcmp(key, "decr_hits") == 0) {
         stats->decr_hits = atol(value);
-    }
-    else if(strcmp(key, "cas_misses") == 0) {
+    } else if (strcmp(key, "cas_misses") == 0) {
         stats->cas_misses = atol(value);
-    }
-    else if(strcmp(key, "cas_hits") == 0) {
+    } else if (strcmp(key, "cas_hits") == 0) {
         stats->cas_hits = atol(value);
-    }
-    else if(strcmp(key, "cas_badval") == 0) {
+    } else if (strcmp(key, "cas_badval") == 0) {
         stats->cas_badval = atol(value);
-    }
-    else if(strcmp(key, "touch_hits") == 0) {
+    } else if (strcmp(key, "touch_hits") == 0) {
         stats->touch_hits = atol(value);
-    }
-    else if(strcmp(key, "touch_misses") == 0) {
+    } else if (strcmp(key, "touch_misses") == 0) {
         stats->touch_misses = atol(value);
-    }
-    else if(strcmp(key, "auth_cmds") == 0) {
+    } else if (strcmp(key, "auth_cmds") == 0) {
         stats->auth_cmds = atol(value);
-    }
-    else if(strcmp(key, "auth_errors") == 0) {
+    } else if (strcmp(key, "auth_errors") == 0) {
         stats->auth_errors = atol(value);
-    }
-    else if(strcmp(key, "bytes") == 0) {
+    } else if (strcmp(key, "bytes") == 0) {
         stats->bytes = atol(value);
-    }
-    else if(strcmp(key, "bytes_read") == 0) {
+    } else if (strcmp(key, "bytes_read") == 0) {
         stats->bytes_read = atol(value);
-    }
-    else if(strcmp(key, "bytes_written") == 0) {
+    } else if (strcmp(key, "bytes_written") == 0) {
         stats->bytes_written = atol(value);
-    }
-    else if(strcmp(key, "limit_maxbytes") == 0) {
+    } else if (strcmp(key, "limit_maxbytes") == 0) {
         stats->limit_maxbytes = atol(value);
-    }
-    else if(strcmp(key, "accepting_conns") == 0) {
+    } else if (strcmp(key, "accepting_conns") == 0) {
         stats->accepting_conns = atol(value);
-    }
-    else if(strcmp(key, "listen_disabled_num") == 0) {
+    } else if (strcmp(key, "listen_disabled_num") == 0) {
         stats->listen_disabled_num = atol(value);
-    }
-    else if(strcmp(key, "time_in_listen_disabled_us") == 0) {
+    } else if (strcmp(key, "time_in_listen_disabled_us") == 0) {
         stats->time_in_listen_disabled_us = atol(value);
-    }
-    else if(strcmp(key, "threads") == 0) {
+    } else if (strcmp(key, "threads") == 0) {
         stats->threads = atol(value);
-    }
-    else if(strcmp(key, "conn_yields") == 0) {
+    } else if (strcmp(key, "conn_yields") == 0) {
         stats->conn_yields = atol(value);
-    }
-    else if(strcmp(key, "hash_power_level") == 0) {
+    } else if (strcmp(key, "hash_power_level") == 0) {
         stats->hash_power_level = atol(value);
-    }
-    else if(strcmp(key, "hash_bytes") == 0) {
+    } else if (strcmp(key, "hash_bytes") == 0) {
         stats->hash_bytes = atol(value);
-    }
-    else if(strcmp(key, "hash_is_expanding") == 0) {
+    } else if (strcmp(key, "hash_is_expanding") == 0) {
         stats->hash_is_expanding = atol(value);
     }
 }

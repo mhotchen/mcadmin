@@ -3,7 +3,7 @@
 (
 	for i in {1..2499}
 	do
-		printf "set item%d 0 0 %d noreply\r\n%s\n\r\n" $i $(cat main.c | wc -c) "$(cat main.c)" | nc localhost 11211
+		printf "set item%d 15 0 %d noreply\r\n%s\n\r\n" $i $(cat main.c | wc -c) "$(cat main.c)" | nc localhost 11211
 	done
 ) &
 

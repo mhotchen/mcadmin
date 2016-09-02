@@ -6,6 +6,8 @@
 #include "commands.h"
 
 static void setStat(Stats *stats, const char const line[static 5]);
+static long getSlabClass(const char const line[static 5]);
+static void setSlabStat(Slab *slab, const char const line[static 5]);
 
 void
 getStats(Stats *stats, int sockfd)
@@ -67,7 +69,7 @@ getStats(Stats *stats, int sockfd)
 void
 flushAll(int sockfd)
 {
-    send(sockfd, "flush_all\r\n", 11, 0);
+    send(sockfd, "flush_all noreply\r\n", 19, 0);
 }
 
 /*
@@ -244,6 +246,83 @@ deleteItem(const char const key[static 1], int sockfd)
     return false;
 }
 
+int
+getSlabs(Slab *first, int sockfd)
+{
+    size_t lineSize = BUFF_SIZE;
+
+    Slab *current = first;
+    char buff[BUFF_SIZE];
+    char *line = calloc(lineSize, sizeof(char));
+    ssize_t recd = 0;
+    int i = 0;
+    int slabCount = 0;
+
+    send(sockfd, "stats slabs\r\n", 13, 0);
+    while (1) {
+        memset(buff, 0, BUFF_SIZE);
+        recd = recv(sockfd, buff, BUFF_SIZE, 0);
+        if (recd == 0) {
+            break;
+        }
+
+        if (recd == -1) {
+            perror("Lost connection to memcache server\n");
+            exit(EXIT_FAILURE);
+        }
+
+        for (int j = 0; j < BUFF_SIZE; ++j) {
+            if (buff[j] == '\r') {
+                if (strcmp(line, "END") == 0) {
+                    ++slabCount;
+                    goto end;
+                }
+
+                long lineSlabClass = getSlabClass(line);
+
+                if (current->class == 0 && lineSlabClass != -1) {
+                    current->class = lineSlabClass;
+                }
+
+                if (lineSlabClass != -1 && lineSlabClass != current->class) {
+                    current->next = malloc(sizeof(Slab));
+                    memset(current->next, 0, sizeof(Slab));
+                    current = current->next;
+                    current->class = lineSlabClass;
+                    ++slabCount;
+                }
+
+                setSlabStat(current, line);
+                memset(line, 0, lineSize);
+                i = 0;
+                ++j;
+                continue;
+            }
+
+            if (buff[j] == '\n') {
+                continue;
+            }
+
+            if (i == lineSize) {
+                line = realloc(line, lineSize + BUFF_SIZE);
+                memset(line + lineSize, 0, BUFF_SIZE);
+                lineSize += BUFF_SIZE;
+                if (!line) {
+                    perror("Couldn't allocate memory when retrieving slab stats\n");
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            line[i] = buff[j];
+            ++i;
+        }
+    }
+
+end:
+    free(line);
+    return slabCount;
+}
+
 /*
  * A line looks like: STAT pid 4125
  */
@@ -366,5 +445,95 @@ setStat(Stats *stats, const char const line[static 5])
         stats->hash_bytes = atol(value);
     } else if (strcmp(key, "hash_is_expanding") == 0) {
         stats->hash_is_expanding = atol(value);
+    }
+}
+
+static long
+getSlabClass(const char const line[static 5])
+{
+    int    sub = 5;
+    size_t length = strlen(line);
+    char   slabClass[length];
+    bool   slabClassFound = false;
+
+    memset(slabClass, 0, length);
+
+    for (int i = sub; i < length; ++i) {
+        if (line[i] == ':') {
+            slabClassFound = true;
+            break;
+        }
+
+        slabClass[i - sub] = line[i];
+    }
+
+    if (!slabClassFound) {
+        return -1;
+    }
+
+    return atol(slabClass);
+}
+
+/*
+ * A line looks like: STAT 7:chunk_size 384
+ * or:                STAT active_slabs 4
+ *
+ * We disregard the second type of stat because it's not related to a slab
+ */
+static void
+setSlabStat(Slab *slab, const char const line[static 5])
+{
+    int    sub = 5;
+    int    i = sub;
+    size_t length = strlen(line);
+    char   key[length];
+    char   value[length];
+    bool   slabClassFound = false;
+
+    memset(key, 0, length);
+    memset(value, 0, length);
+
+    for (; i < length; ++i) {
+        if (line[i] == ':') {
+            slabClassFound = true;
+            break;
+        }
+    }
+
+    sub = ++i;
+
+    if (!slabClassFound) {
+        return;
+    }
+
+
+    for (; i < length; ++i) {
+        if (line[i] == ' ') {
+            break;
+        }
+
+        key[i - sub] = line[i];
+    }
+
+    sub = ++i;
+
+    for (; i < length; ++i) {
+        value[i - sub] = line[i];
+    }
+
+    if (strcmp(key, "chunk_size") == 0) {
+        slab->chunk_size = atol(value);
+    } else if (strcmp(key, "chunks_per_page") == 0) {
+        slab->chunks_per_page = atol(value);
+    } else if (strcmp(key, "total_chunks") == 0) {
+        slab->total_chunks = atol(value);
+    } else if (strcmp(key, "total_pages") == 0) {
+        slab->total_pages = atol(value);
+    } else if (strcmp(key, "used_chunks") == 0) {
+        slab->used_chunks = atol(value);
+    } else if (strcmp(key, "free_chunks") == 0) {
+        slab->free_chunks = atol(value);
+    } else if (strcmp(key, "mem_requested") == 0) {
+        slab->mem_requested = atol(value);
     }
 }

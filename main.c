@@ -1,13 +1,15 @@
 #include <cdk/cdk.h>
 #include <ncurses.h>
+#include <panel.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
-#include "memcache/connect.h"
 #include "memcache/commands.h"
+#include "memcache/connect.h"
 
 void usage(const char filename[static 1]);
 void showStats(WINDOW *const win, const Stats *const stats);
+void showSlab(WINDOW *const win, const Slab *const slab, const int i, const int slabCount);
 void refreshWindows(int count, WINDOW *const windows[count]);
 
 int
@@ -20,7 +22,7 @@ main(const int argc, const char *const argv[argc])
     const int sockfd = connectByNetworkSocket(argv[1], argv[2]);
     Stats stats = {0};
 
-    WINDOW* cursesWin = initscr();
+    WINDOW *const cursesWin = initscr();
     CDKSCREEN* cdkScreen = initCDKScreen(cursesWin);
     cbreak();
     noecho();
@@ -38,7 +40,7 @@ main(const int argc, const char *const argv[argc])
     long lastStatsRefresh = 0;
     bool quit = false;
 
-    mvwprintw(menuWin, 0, 0, "mcadmin | q: quit | f: flush all content | /: find");
+    mvwprintw(menuWin, 0, 0, "mcadmin | q: quit | f: flush all content | /: find | s: view slabs");
     wrefresh(menuWin);
 
     while (!quit) {
@@ -98,6 +100,44 @@ main(const int argc, const char *const argv[argc])
                 }
             }
         }
+        if (command == 's') {
+            Slab slab = {0};
+            int slabCount = getSlabs(&slab, sockfd);
+            WINDOW *slabWindows[slabCount];
+            PANEL  *slabPanels[slabCount];
+            PANEL  *currentTab;
+            Slab   *currentSlab = &slab;
+
+            for (int i = 0; i < slabCount; ++i) {
+                slabWindows[i] = newwin(LINES - 1, COLS, 1, 0);
+                slabPanels[i] = new_panel(slabWindows[i]);
+                if (i != 0) {
+                    set_panel_userptr(slabPanels[i - 1], slabPanels[i]);
+                }
+                showSlab(slabWindows[i], currentSlab, i + 1, slabCount);
+                currentSlab = currentSlab->next;
+            }
+
+            set_panel_userptr(slabPanels[slabCount - 1], slabPanels[0]);
+            currentTab = slabPanels[0];
+            while(1) {
+                command = getch();
+                if (command == 'q') {
+                    quit = true;
+                    break;
+                }
+                if (command == 27 || command == '\r' || command == '\n') {
+                    break;
+                }
+                if (command == 9) {
+                    currentTab = (PANEL *) panel_userptr(currentTab);
+                }
+                top_panel(currentTab);
+                update_panels();
+                doupdate();
+                nanosleep(&loopDelay, 0);
+            }
+        }
 
         if (command != -1) {
             refreshWindows(sizeof(windows) / sizeof(windows[0]), windows);
@@ -141,6 +181,17 @@ showStats(WINDOW *const win, const Stats *const stats)
     mvwprintw(win, ++row, 0, "Connections: %ld (curr), %ld (tot)", stats->curr_connections, stats->total_connections);
     mvwprintw(win, ++row, 0, "Commands: set: %ld, get: %ldh/%ldm, delete %ldh/%ldm, cas %ldh/%ldm/%ldb", stats->cmd_set, stats->get_hits, stats->get_misses, stats->delete_hits, stats->delete_misses, stats->cas_hits, stats->cas_misses, stats->cas_badval);
     mvwprintw(win, ++row, 0, "          incr: %ldh/%ldm, decr %ldh/%ldm, touch %ldh/%ldm", stats->incr_hits, stats->incr_misses, stats->decr_hits, stats->decr_misses, stats->touch_hits, stats->touch_misses);
+}
+
+void
+showSlab(WINDOW *const win, const Slab *const slab, const int i, const int slabTotal)
+{
+    int row = 0;
+    mvwprintw(win,   row, 0, "Slab %ld (%d of %d)", slab->class, i, slabTotal);
+    mvwprintw(win, ++row, 0, "Chunks: amount: %ld, used: %ld, free: %ld, chunk size: %ld", slab->total_chunks, slab->used_chunks, slab->free_chunks, slab->chunk_size);
+    mvwprintw(win, ++row, 0, "Pages: amount: %ld, chunks per page: %ld", slab->total_pages, slab->chunks_per_page);
+    mvwprintw(win, ++row, 0, "Memory: max: %ld, used: %ld, free: %ld", slab->total_chunks * slab->chunk_size, slab->mem_requested, (slab->total_chunks * slab->chunk_size) - slab->mem_requested);
+
 }
 
 void

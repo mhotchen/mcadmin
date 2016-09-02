@@ -72,9 +72,23 @@ struct Item {
     int flags;
 };
 
+typedef struct Slab Slab;
+struct Slab {
+    long class;
+    long chunk_size;
+    long chunks_per_page;
+    long total_chunks;
+    long total_pages;
+    long used_chunks;
+    long free_chunks;
+    long mem_requested;
+    Slab* next;
+};
+
 void getStats(Stats *stats, int sockfd);
 void flushAll(int sockfd);
 bool getItem(Item *item, const char const key[static 1], int sockfd);
 bool deleteItem(const char const key[static 1], int sockfd);
+int  getSlabs(Slab *first, int sockfd);
 
 #endif //MCADMIN_STATS_H

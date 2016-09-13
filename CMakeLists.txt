@@ -6,5 +6,5 @@ link_libraries(ncurses)
 link_libraries(panel)
 link_libraries(cdk)
 
-set(SOURCE_FILES main.c memcache/commands.h memcache/commands.c memcache/connect.c memcache/connect.h)
+set(SOURCE_FILES main.c memcache/commands.h memcache/commands.c memcache/connect.c memcache/connect.h actions/actions.c actions/actions.h ui/modals.h ui/modals.c ui/screens.c ui/screens.h)
 add_executable(mcadmin ${SOURCE_FILES})

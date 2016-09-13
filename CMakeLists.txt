@@ -1,10 +1,27 @@
 cmake_minimum_required(VERSION 3.5)
 project(mcadmin)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c11 -x c -ansi")
-link_libraries(ncurses)
-link_libraries(panel)
-link_libraries(cdk)
+link_libraries(
+    ncurses
+    panel
+    cdk
+)
 
-set(SOURCE_FILES main.c memcache/commands.h memcache/commands.c memcache/connect.c memcache/connect.h actions/actions.c actions/actions.h ui/modals.h ui/modals.c ui/screens.c ui/screens.h)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c11 -x c -ansi")
+
+set(
+    SOURCE_FILES
+    src/main.c
+    src/memcache/commands.h
+    src/memcache/commands.c
+    src/memcache/connect.c
+    src/memcache/connect.h
+    src/actions/actions.c
+    src/actions/actions.h
+    src/ui/modals.h
+    src/ui/modals.c
+    src/ui/screens.c
+    src/ui/screens.h
+)
+
 add_executable(mcadmin ${SOURCE_FILES})

@@ -63,7 +63,7 @@ searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 static void
 quit(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
-
+    *currentScreen = NULL;
 }
 
 static void

@@ -32,7 +32,6 @@ main(const int argc, const char *const argv[argc])
     noecho();
     nodelay(cdkScreen->window, true);
     curs_set(0);
-    getch();
 
     WINDOW *const menuWin = newwin(1, COLS, 0, 0);
 

@@ -2,7 +2,9 @@
 #define MCADMIN_SCREENS_H
 
 #include <curses.h>
+#include <malloc.h>
 #include <panel.h>
+#include "../memcache/commands.h"
 
 typedef struct Screen Screen;
 struct Screen {

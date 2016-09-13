@@ -1,8 +1,3 @@
-#include <errno.h>
-#include <netdb.h>
-#include <memory.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include "connect.h"
 
 int

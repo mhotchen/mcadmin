@@ -1,7 +1,4 @@
-#include <malloc.h>
-#include <stdlib.h>
 #include "screens.h"
-#include "../memcache/commands.h"
 
 static void
 connectPanels(int panelCount, PANEL *panels[panelCount])
@@ -13,7 +10,7 @@ connectPanels(int panelCount, PANEL *panels[panelCount])
 }
 
 Screen *
-createScreen(int panelCount, PANEL *panels[panelCount], Screen *next, void (*refreshData)(Screen *this, int mcConn))
+createScreen(int panelCount, PANEL *panels[panelCount], Screen *next, void (*refreshData)(Screen *, int))
 {
     Screen *screen = calloc(1, sizeof(Screen));
     screen->panelCount = panelCount;

@@ -2,6 +2,8 @@
 #define MCADMIN_ACTIONS_H
 
 #include <cdk/cdk.h>
+#include "../memcache/commands.h"
+#include "../ui/modals.h"
 #include "../ui/screens.h"
 
 typedef struct Action Action;

@@ -1,7 +1,12 @@
 #ifndef MCADMIN_STATS_H
 #define MCADMIN_STATS_H
 
+#include <netdb.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #define MAX_CONTENT_LENGTH 102400
 #define BUFF_SIZE 80

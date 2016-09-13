@@ -1,8 +1,3 @@
-#include <netdb.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <time.h>
 #include "commands.h"
 
 static void setStat(Stats *stats, const char const line[static 5]);

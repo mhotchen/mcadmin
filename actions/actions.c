@@ -1,7 +1,4 @@
-#include <cdk/cdk.h>
 #include "actions.h"
-#include "../memcache/commands.h"
-#include "../ui/modals.h"
 
 static void
 flushAllContent(CDKSCREEN *screen, int mcConn, Screen **currentScreen)

@@ -25,41 +25,38 @@ main(const int argc, const char *const argv[argc])
         usage(argv[0]);
     }
 
-    const int mcConn = connectByNetworkSocket(argv[1], argv[2]);
+    int       mcConn = connectByNetworkSocket(argv[1], argv[2]);
+    CDKSCREEN *cdkScreen = initCDKScreen(initscr());
+    WINDOW    *menuWin = newwin(1, COLS, 0, 0);
+    long      lastDataRefresh = 0;
+    PANEL     *statsPanels[] = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
+    PANEL     *slabsPanels[] = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
+    Screen    *statsScreen = createScreen(1, statsPanels, NULL, &refreshStatsData);
+    Screen    *slabsScreen = createScreen(1, slabsPanels, statsScreen, &refreshSlabsData);
+    struct timespec loopDelay = {0, 100000000};
 
-    CDKSCREEN* cdkScreen = initCDKScreen(initscr());
+    statsScreen->next = slabsScreen;
+    Screen *currentScreen = statsScreen;
     cbreak();
     noecho();
     nodelay(cdkScreen->window, true);
     curs_set(0);
 
-    WINDOW *const menuWin = newwin(1, COLS, 0, 0);
-
-    const struct timespec loopDelay = {0, 100000000};
-    long lastDataRefresh = 0;
-
     mvwprintw(menuWin, 0, 0, "mcadmin | q: quit | f: flush all content | /: find | s: switch view");
     wrefresh(menuWin);
 
-    PANEL *statsPanels[] = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
-    PANEL *slabsPanels[] = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
-    Screen *statsScreen = createScreen(1, statsPanels, NULL, &refreshStatsData);
-    Screen *slabsScreen = createScreen(1, slabsPanels, statsScreen, &refreshSlabsData);
-    statsScreen->next = slabsScreen;
-    Screen *current = statsScreen;
-
-    while (current) {
+    while (currentScreen) {
         if (time(0) - lastDataRefresh > 3) {
-            current->refreshData(current, mcConn);
+            currentScreen->refreshData(currentScreen, mcConn);
             lastDataRefresh = time(0);
         }
 
-        refreshCDKWindow(current->currentPanel->win);
+        refreshCDKWindow(currentScreen->currentPanel->win);
         refreshCDKWindow(menuWin);
 
         nanosleep(&loopDelay, 0);
 
-        handleAction(getch(), cdkScreen, mcConn, &current);
+        handleAction(getch(), cdkScreen, mcConn, &currentScreen);
     }
 
     destroyCDKScreen(cdkScreen);

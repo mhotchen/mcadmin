@@ -12,7 +12,8 @@ connectPanels(int panelCount, PANEL *panels[panelCount])
 Screen *
 createScreen(int panelCount, PANEL *panels[panelCount], Screen *next, void (*refreshData)(Screen *, int))
 {
-    Screen *screen = calloc(1, sizeof(Screen));
+    Screen *screen = malloc(sizeof(Screen));
+
     screen->panelCount = panelCount;
     screen->panels = panels;
     screen->currentPanel = panels[0];
@@ -27,11 +28,13 @@ void
 refreshStatsData(Screen *screen, int mcConn)
 {
     Stats stats = {0};
-    getStats(&stats, mcConn);
     int row = 0;
+
+    getStats(&stats, mcConn);
+
     mvwprintw(
         screen->currentPanel->win,
-        row,
+        row++,
         0,
         "Memcache %s, PID: %ld, uptime: %ld",
         stats.version,
@@ -40,7 +43,7 @@ refreshStatsData(Screen *screen, int mcConn)
     );
     mvwprintw(
         screen->currentPanel->win,
-        ++row,
+        row++,
         0,
         "CPU time: %.2f (usr), %.2f (sys)",
         stats.rusage_user,
@@ -48,7 +51,7 @@ refreshStatsData(Screen *screen, int mcConn)
     );
     mvwprintw(
         screen->currentPanel->win,
-        ++row,
+        row++,
         0,
         "Memory: used: %ld bytes, available: %ld bytes",
         stats.bytes,
@@ -56,7 +59,7 @@ refreshStatsData(Screen *screen, int mcConn)
     );
     mvwprintw(
         screen->currentPanel->win,
-        ++row,
+        row++,
         0,
         "Network: read: %ld bytes, written: %ld bytes",
         stats.bytes_read,
@@ -64,7 +67,7 @@ refreshStatsData(Screen *screen, int mcConn)
     );
     mvwprintw(
         screen->currentPanel->win,
-        ++row,
+        row++,
         0,
         "Connections: %ld (curr), %ld (tot)",
         stats.curr_connections,
@@ -72,7 +75,7 @@ refreshStatsData(Screen *screen, int mcConn)
     );
     mvwprintw(
         screen->currentPanel->win,
-        ++row,
+        row++,
         0,
         "Commands: set: %ld, get: %ldh/%ldm, delete %ldh/%ldm, cas %ldh/%ldm/%ldb",
         stats.cmd_set,
@@ -86,7 +89,7 @@ refreshStatsData(Screen *screen, int mcConn)
     );
     mvwprintw(
         screen->currentPanel->win,
-        ++row,
+        row++,
         0,
         "          incr: %ldh/%ldm, decr %ldh/%ldm, touch %ldh/%ldm",
         stats.incr_hits,
@@ -102,7 +105,9 @@ void
 refreshSlabsData(Screen *screen, int mcConn)
 {
     Slab slab = {0};
+    int row = 0;
     int slabCount = getSlabs(&slab, mcConn);
+
     if (slabCount != screen->panelCount) {
         int x, y, w, h;
         getbegyx(screen->currentPanel->win, y, x);
@@ -122,10 +127,11 @@ refreshSlabsData(Screen *screen, int mcConn)
     int i = 0;
     Slab *current = &slab;
     while (current) {
-        int row = 0;
+        row = 0;
+
         mvwprintw(
             screen->panels[i]->win,
-            row,
+            row++,
             0,
             "Slab %ld (%d of %d) | <TAB>: cycle through slabs",
             current->class,
@@ -134,7 +140,7 @@ refreshSlabsData(Screen *screen, int mcConn)
         );
         mvwprintw(
             screen->panels[i]->win,
-            ++row,
+            row++,
             0,
             "Chunks: amount: %ld, used: %ld, free: %ld, chunk size: %ld",
             current->total_chunks,
@@ -144,7 +150,7 @@ refreshSlabsData(Screen *screen, int mcConn)
         );
         mvwprintw(
             screen->panels[i]->win,
-            ++row,
+            row++,
             0,
             "Pages: amount: %ld, chunks per page: %ld",
             current->total_pages,
@@ -152,13 +158,14 @@ refreshSlabsData(Screen *screen, int mcConn)
         );
         mvwprintw(
             screen->panels[i]->win,
-            ++row,
+            row++,
             0,
             "Memory: max: %ld, used: %ld, free: %ld",
             current->total_chunks * current->chunk_size,
             current->mem_requested,
             (current->total_chunks * current->chunk_size) - current->mem_requested
         );
+
         current = current->next;
         ++i;
     }

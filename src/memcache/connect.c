@@ -6,7 +6,7 @@ connectByNetworkSocket(const char *const name, const char *const port) {
     struct addrinfo *info = 0;
 
     int conn = -1;
-    int sockfd = -1;
+    int mcConn = -1;
 
     memset(&hints, 0, sizeof(hints));
 
@@ -20,12 +20,12 @@ connectByNetworkSocket(const char *const name, const char *const port) {
     }
 
     for (; info != NULL; info = info->ai_next) {
-        sockfd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
-        if (sockfd == -1) {
+        mcConn = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+        if (mcConn == -1) {
             continue;
         }
 
-        conn = connect(sockfd, info->ai_addr, info->ai_addrlen);
+        conn = connect(mcConn, info->ai_addr, info->ai_addrlen);
         if (conn == -1) {
             continue;
         }
@@ -33,10 +33,10 @@ connectByNetworkSocket(const char *const name, const char *const port) {
         break;
     }
 
-    if (sockfd == -1 || conn == -1) {
+    if (mcConn == -1 || conn == -1) {
         perror(strerror(errno));
         exit(EXIT_FAILURE);
     }
 
-    return sockfd;
+    return mcConn;
 }

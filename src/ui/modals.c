@@ -18,6 +18,7 @@ textBox(CDKSCREEN *screen, char *title, char *label, char userInput[256])
         true,
         false
     );
+
     memcpy(userInput, activateCDKEntry(textBox, 0), 256);
 }
 

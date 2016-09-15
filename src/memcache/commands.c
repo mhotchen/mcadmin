@@ -5,19 +5,18 @@ static long getSlabClass(const char const line[static 5]);
 static void setSlabStat(Slab *slab, const char const line[static 5]);
 
 void
-getStats(Stats *stats, int sockfd)
+getStats(Stats *stats, int mcConn)
 {
-    size_t lineSize = BUFF_SIZE;
-
-    char buff[BUFF_SIZE];
-    char *line = calloc(lineSize, sizeof(char));
+    size_t  lineSize = BUFF_SIZE;
+    char    buff[BUFF_SIZE];
+    char    *line = calloc(lineSize, sizeof(char));
     ssize_t recd = 0;
-    int i = 0;
+    int     i = 0;
 
-    send(sockfd, "stats\r\n", 7, 0);
+    send(mcConn, "stats\r\n", 7, 0);
     while (1) {
         memset(buff, 0, BUFF_SIZE);
-        recd = recv(sockfd, buff, BUFF_SIZE, 0);
+        recd = recv(mcConn, buff, BUFF_SIZE, 0);
         if (recd == 0) {
             break;
         }
@@ -62,9 +61,9 @@ getStats(Stats *stats, int sockfd)
 }
 
 void
-flushAll(int sockfd)
+flushAll(int mcConn)
 {
-    send(sockfd, "flush_all noreply\r\n", 19, 0);
+    send(mcConn, "flush_all noreply\r\n", 19, 0);
 }
 
 /*
@@ -78,7 +77,7 @@ flushAll(int sockfd)
  *
  */
 bool
-getItem(Item *item, const char const key[static 1], int sockfd)
+getItem(Item *item, const char const key[static 1], int mcConn)
 {
     size_t  keyLength = strlen(key);
     size_t  commandLength = keyLength + 6; /* strlen("get \r\n") == 6 */
@@ -93,7 +92,7 @@ getItem(Item *item, const char const key[static 1], int sockfd)
     size_t  segmentSize = BUFF_SIZE;
 
     sprintf(command, "get %s\r\n", key);
-    send(sockfd, command, commandLength, 0);
+    send(mcConn, command, commandLength, 0);
     free(command);
 
     bool flagsSet = false;
@@ -103,7 +102,7 @@ getItem(Item *item, const char const key[static 1], int sockfd)
 
     while (1) {
         memset(buff, 0, BUFF_SIZE);
-        recd = recv(sockfd, buff, BUFF_SIZE, 0);
+        recd = recv(mcConn, buff, BUFF_SIZE, 0);
         if (recd == 0) {
             break;
         }
@@ -212,7 +211,7 @@ getItem(Item *item, const char const key[static 1], int sockfd)
 }
 
 bool
-deleteItem(const char const key[static 1], int sockfd)
+deleteItem(const char const key[static 1], int mcConn)
 {
     size_t  commandLength = strlen(key) + 9;
     ssize_t recd = 0;
@@ -220,10 +219,10 @@ deleteItem(const char const key[static 1], int sockfd)
     char    buff[11] = {0};
 
     sprintf(command, "delete %s\r\n", key);
-    send(sockfd, command, commandLength, 0);
+    send(mcConn, command, commandLength, 0);
     free(command);
 
-    recd = recv(sockfd, buff, 11, 0);
+    recd = recv(mcConn, buff, 11, 0);
 
     if (recd == 0) {
         return false;
@@ -242,23 +241,22 @@ deleteItem(const char const key[static 1], int sockfd)
 }
 
 int
-getSlabs(Slab *first, int sockfd)
+getSlabs(Slab *first, int mcConn)
 {
-    size_t lineSize = BUFF_SIZE;
-
-    Slab *current = first;
-    char buff[BUFF_SIZE];
-    char *line = calloc(lineSize, sizeof(char));
+    size_t  lineSize = BUFF_SIZE;
+    Slab    *current = first;
+    char    buff[BUFF_SIZE] = {0};
+    char    *line = calloc(lineSize, sizeof(char));
     ssize_t recd = 0;
-    int i = 0;
-    int slabCount = 0;
+    int     i = 0;
+    int     slabCount = 0;
 
-    send(sockfd, "stats slabs\r\n", 13, 0);
+    send(mcConn, "stats slabs\r\n", 13, 0);
     while (1) {
         memset(buff, 0, BUFF_SIZE);
-        recd = recv(sockfd, buff, BUFF_SIZE, 0);
+        recd = recv(mcConn, buff, BUFF_SIZE, 0);
         if (recd == 0) {
-            break;
+            goto end;
         }
 
         if (recd == -1) {

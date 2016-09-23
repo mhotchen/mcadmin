@@ -15,7 +15,15 @@ usage(const char filename[static 1])
     fprintf(stderr, "%s [HOST] [PORT]\n\n", filename);
     fprintf(stderr, "  [HOST] host address of the memcached host server either as IP or domain lookup\n");
     fprintf(stderr, "  [PORT] port number of the memcached instance to connect to\n\n");
-    exit(EXIT_FAILURE);
+}
+
+static void
+configureCdk(CDKSCREEN *screen)
+{
+    cbreak();
+    noecho();
+    nodelay(screen->window, true);
+    curs_set(0);
 }
 
 int
@@ -23,24 +31,41 @@ main(const int argc, const char *const argv[argc])
 {
     if (argc != 3) {
         usage(argv[0]);
+        exit(EXIT_FAILURE);
     }
 
-    int       mcConn = connectByNetworkSocket(argv[1], argv[2]);
-    CDKSCREEN *cdkScreen = initCDKScreen(initscr());
-    WINDOW    *menuWin = newwin(1, COLS, 0, 0);
-    long      lastDataRefresh = 0;
-    PANEL     *statsPanels[] = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
-    PANEL     *slabsPanels[] = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
-    Screen    *statsScreen = createScreen(1, statsPanels, NULL, &refreshStatsData);
-    Screen    *slabsScreen = createScreen(1, slabsPanels, statsScreen, &refreshSlabsData);
-    struct timespec loopDelay = {0, 100000000};
+    CDKSCREEN             *cdkScreen       = initCDKScreen(initscr());
+    int                   mcConn           = 0;
+    WINDOW                *menuWin         = newwin(1, COLS, 0, 0);
+    long                  lastDataRefresh  = 0;
+    PANEL                 *statsPanels[]   = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
+    PANEL                 *slabsPanels[]   = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
+    Screen                *statsScreen     = createScreen(1, statsPanels, NULL, &refreshStatsData);
+    Screen                *slabsScreen     = createScreen(1, slabsPanels, statsScreen, &refreshSlabsData);
+    struct timespec       loopDelay        = {0, 100000000};
+    enum McConnectStatus  connectStatus    = connectByNetworkSocket(argv[1], argv[2], &mcConn);
+
+    if (connectStatus != MC_CONN_STATUS_SUCCESS) {
+        destroyCDKScreen(cdkScreen);
+        endCDK();
+        switch (connectStatus) {
+            case MC_CONN_STATUS_LOOKUP_ERROR:
+                fprintf(stderr, "Unable to find host\n");
+                break;
+            case MC_CONN_STATUS_CANT_CONNECT:
+                fprintf(stderr, "Host found but unable to connect (maybe wrong port?)\n");
+                break;
+            default:
+                fprintf(stderr, "Unknown error connecting to memcache server. Error code %d\n", connectStatus);
+                break;
+        }
+        exit(EXIT_FAILURE);
+    }
+
+    configureCdk(cdkScreen);
 
     statsScreen->next = slabsScreen;
     Screen *currentScreen = statsScreen;
-    cbreak();
-    noecho();
-    nodelay(cdkScreen->window, true);
-    curs_set(0);
 
     mvwprintw(menuWin, 0, 0, "mcadmin | q: quit | f: flush all content | /: find | s: switch view");
     wrefresh(menuWin);
@@ -59,9 +84,5 @@ main(const int argc, const char *const argv[argc])
         handleAction(getch(), cdkScreen, mcConn, &currentScreen);
     }
 
-    destroyCDKScreen(cdkScreen);
-    endCDK();
-
-    close(mcConn);
     exit(EXIT_SUCCESS);
 }

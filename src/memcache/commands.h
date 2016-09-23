@@ -90,10 +90,17 @@ struct Slab {
     Slab* next;
 };
 
-void getStats(Stats *stats, int sockfd);
-void flushAll(int sockfd);
-bool getItem(Item *item, const char const key[static 1], int sockfd);
-bool deleteItem(const char const key[static 1], int sockfd);
-int  getSlabs(Slab *first, int sockfd);
+enum McCommandStatus {
+    MC_COMMAND_STATUS_SUCCESS,
+    MC_COMMAND_STATUS_LOST_CONNECTION,
+    MC_COMMAND_STATUS_MEMORY_ERROR,
+    MC_COMMAND_STATUS_ITEM_NOT_FOUND
+};
+
+enum McCommandStatus getStats(Stats *stats, int mcConn);
+enum McCommandStatus flushAll(int mcConn);
+enum McCommandStatus getItem(Item *item, const char const key[static 1], int mcConn);
+enum McCommandStatus deleteItem(const char const key[static 1], int mcConn);
+enum McCommandStatus getSlabs(Slab *first, int *slabCount, int mcConn);
 
 #endif //MCADMIN_STATS_H

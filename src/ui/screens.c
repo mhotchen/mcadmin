@@ -6,6 +6,7 @@ connectPanels(int panelCount, PANEL *panels[panelCount])
     for (int i = 1; i < panelCount; ++i) {
         set_panel_userptr(panels[i - 1], panels[i]);
     }
+
     set_panel_userptr(panels[panelCount - 1], panels[0]);
 }
 
@@ -28,7 +29,7 @@ void
 refreshStatsData(Screen *screen, int mcConn)
 {
     Stats stats = {0};
-    int row = 0;
+    int   row   = 0;
 
     getStats(&stats, mcConn);
 
@@ -104,9 +105,11 @@ refreshStatsData(Screen *screen, int mcConn)
 void
 refreshSlabsData(Screen *screen, int mcConn)
 {
-    Slab slab = {0};
-    int row = 0;
-    int slabCount = getSlabs(&slab, mcConn);
+    Slab slab      = {0};
+    int  row       = 0;
+    int  slabCount = 0;
+
+    getSlabs(&slab, &slabCount, mcConn);
 
     if (slabCount != screen->panelCount) {
         int x, y, w, h;

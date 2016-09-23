@@ -4,33 +4,31 @@ static void setStat(Stats *stats, const char const line[static 5]);
 static long getSlabClass(const char const line[static 5]);
 static void setSlabStat(Slab *slab, const char const line[static 5]);
 
-void
+enum McCommandStatus
 getStats(Stats *stats, int mcConn)
 {
-    size_t  lineSize = BUFF_SIZE;
-    char    buff[BUFF_SIZE];
-    char    *line = calloc(lineSize, sizeof(char));
-    ssize_t recd = 0;
-    int     i = 0;
+    size_t               lineSize        = BUFF_SIZE;
+    char                 *line           = calloc(lineSize, sizeof(char));
+    ssize_t              recd            = 0;
+    int                  i               = 0;
+    enum McCommandStatus status          = MC_COMMAND_STATUS_SUCCESS;
+    char                 buff[BUFF_SIZE];
 
     send(mcConn, "stats\r\n", 7, 0);
+
     while (1) {
         memset(buff, 0, BUFF_SIZE);
         recd = recv(mcConn, buff, BUFF_SIZE, 0);
-        if (recd == 0) {
-            break;
-        }
 
-        if (recd == -1) {
-            perror("Lost connection to memcache server\n");
-            exit(EXIT_FAILURE);
+        if (recd == -1 || recd == 0) {
+            status = MC_COMMAND_STATUS_LOST_CONNECTION;
+            goto end;
         }
 
         for (int j = 0; j < BUFF_SIZE; ++j) {
             if (buff[j] == '\r') {
                 if (strcmp(line, "END") == 0) {
-                    free(line);
-                    return;
+                    goto end;
                 }
 
                 setStat(stats, line);
@@ -49,8 +47,7 @@ getStats(Stats *stats, int mcConn)
                 memset(line + lineSize, 0, BUFF_SIZE);
                 lineSize += BUFF_SIZE;
                 if (!line) {
-                    perror("Couldn't allocate memory when retrieving stats\n");
-                    exit(EXIT_FAILURE);
+                    return MC_COMMAND_STATUS_MEMORY_ERROR;
                 }
             }
 
@@ -58,12 +55,26 @@ getStats(Stats *stats, int mcConn)
             ++i;
         }
     }
+
+end:
+    free(line);
+    return status;
 }
 
-void
+enum McCommandStatus
 flushAll(int mcConn)
 {
+    ssize_t recd            = 0;
+    char    buff[BUFF_SIZE];
+
     send(mcConn, "flush_all noreply\r\n", 19, 0);
+    recd = recv(mcConn, buff, BUFF_SIZE, 0);
+
+    if (recd == -1 || recd == 0) {
+        return MC_COMMAND_STATUS_LOST_CONNECTION;
+    }
+
+    return MC_COMMAND_STATUS_SUCCESS;
 }
 
 /*
@@ -76,47 +87,47 @@ flushAll(int mcConn)
  *        \r\nEND\r\n at the end so the content length is important
  *
  */
-bool
+enum McCommandStatus
 getItem(Item *item, const char const key[static 1], int mcConn)
 {
-    size_t  keyLength = strlen(key);
-    size_t  commandLength = keyLength + 6; /* strlen("get \r\n") == 6 */
-    ssize_t recd = 0;
-    char    buff[BUFF_SIZE];
-    char    *segment = calloc(BUFF_SIZE, sizeof(char));
-    char    *command = calloc(commandLength, sizeof(char));
-    size_t  j = keyLength + 7; /* strlen("VALUE  ") == 7 */
-    size_t  i = 0;
-    int     contentPos = 0;
-    int     line = 0;
-    size_t  segmentSize = BUFF_SIZE;
+    size_t               keyLength       = strlen(key);
+    size_t               commandLength   = keyLength + 6; /* strlen("get \r\n") == 6 */
+    ssize_t              recd            = 0;
+    char                 *segment        = calloc(BUFF_SIZE, sizeof(char));
+    char                 *command        = calloc(commandLength, sizeof(char));
+    size_t               j               = keyLength + 7; /* strlen("VALUE  ") == 7 */
+    size_t               i               = 0;
+    int                  contentPos      = 0;
+    int                  line            = 0;
+    size_t               segmentSize     = BUFF_SIZE;
+    enum McCommandStatus status          = MC_COMMAND_STATUS_ITEM_NOT_FOUND;
+    bool                 flagsSet        = false;
+    bool                 lengthSet       = false;
+    bool                 contentSet      = false;
+    char                 buff[BUFF_SIZE];
+
+    if (!segment || ! command) {
+        return MC_COMMAND_STATUS_MEMORY_ERROR;
+    }
 
     sprintf(command, "get %s\r\n", key);
     send(mcConn, command, commandLength, 0);
     free(command);
 
-    bool flagsSet = false;
-    bool lengthSet = false;
-    bool contentSet = false;
-    bool found = false;
-
     while (1) {
         memset(buff, 0, BUFF_SIZE);
         recd = recv(mcConn, buff, BUFF_SIZE, 0);
-        if (recd == 0) {
-            break;
-        }
 
-        if (recd == -1) {
-            perror("Lost connection to memcache server\n");
-            exit(EXIT_FAILURE);
+        if (recd == -1 || recd == 0) {
+            status = MC_COMMAND_STATUS_LOST_CONNECTION;
+            goto end;
         }
 
         if (strcmp("END\r\n", buff) == 0) {
-            break;
+            goto end;
         }
 
-        found = true;
+        status = MC_COMMAND_STATUS_SUCCESS;
 
         if (j >= BUFF_SIZE) {
             j -= BUFF_SIZE;
@@ -137,6 +148,9 @@ getItem(Item *item, const char const key[static 1], int mcConn)
                 segment[i++] = buff[j];
                 if (i == segmentSize) {
                     segment = realloc(segment, segmentSize + BUFF_SIZE);
+                    if (!segment) {
+                        return MC_COMMAND_STATUS_MEMORY_ERROR;
+                    }
                     memset(segment + segmentSize, 0, BUFF_SIZE);
                     segmentSize += BUFF_SIZE;
                 }
@@ -157,6 +171,9 @@ getItem(Item *item, const char const key[static 1], int mcConn)
                 segment[i++] = buff[j];
                 if (i == segmentSize) {
                     segment = realloc(segment, segmentSize + BUFF_SIZE);
+                    if (!segment) {
+                        return MC_COMMAND_STATUS_MEMORY_ERROR;
+                    }
                     memset(segment + segmentSize, 0, BUFF_SIZE);
                     segmentSize += BUFF_SIZE;
                 }
@@ -187,6 +204,9 @@ getItem(Item *item, const char const key[static 1], int mcConn)
                 segment[i++] = buff[j];
                 if (i == segmentSize) {
                     segment = realloc(segment, segmentSize + BUFF_SIZE);
+                    if (!segment) {
+                        return MC_COMMAND_STATUS_MEMORY_ERROR;
+                    }
                     memset(segment + segmentSize, 0, BUFF_SIZE);
                     segmentSize += BUFF_SIZE;
                 }
@@ -196,27 +216,28 @@ getItem(Item *item, const char const key[static 1], int mcConn)
         }
 
         if (contentSet) {
-            break;
+            goto end;
         }
 
         j = 0;
     }
 
+end:
     free(segment);
 
     memcpy(item->key, key, keyLength);
     item->key[keyLength] = '\0';
 
-    return found;
+    return status;
 }
 
-bool
+enum McCommandStatus
 deleteItem(const char const key[static 1], int mcConn)
 {
     size_t  commandLength = strlen(key) + 9;
-    ssize_t recd = 0;
-    char    *command = calloc(commandLength, 0);
-    char    buff[11] = {0};
+    ssize_t recd          = 0;
+    char    *command      = calloc(commandLength, 0);
+    char    buff[11]      = {0};
 
     sprintf(command, "delete %s\r\n", key);
     send(mcConn, command, commandLength, 0);
@@ -224,50 +245,46 @@ deleteItem(const char const key[static 1], int mcConn)
 
     recd = recv(mcConn, buff, 11, 0);
 
-    if (recd == 0) {
-        return false;
-    }
-
-    if (recd == -1) {
-        perror("Lost connection to memcache server\n");
-        exit(EXIT_FAILURE);
+    if (recd == -1 || recd == 0) {
+        return MC_COMMAND_STATUS_LOST_CONNECTION;
     }
 
     if (strcmp("DELETED\r\n", buff) == 0) {
-        return true;
+        return MC_COMMAND_STATUS_SUCCESS;
     }
 
-    return false;
+    return MC_COMMAND_STATUS_ITEM_NOT_FOUND;
 }
 
-int
-getSlabs(Slab *first, int mcConn)
+enum McCommandStatus
+getSlabs(Slab *first, int *count, int mcConn)
 {
-    size_t  lineSize = BUFF_SIZE;
-    Slab    *current = first;
-    char    buff[BUFF_SIZE] = {0};
-    char    *line = calloc(lineSize, sizeof(char));
-    ssize_t recd = 0;
-    int     i = 0;
-    int     slabCount = 0;
+    size_t               lineSize        = BUFF_SIZE;
+    Slab                 *current        = first;
+    char                 buff[BUFF_SIZE] = {0};
+    char                 *line           = calloc(lineSize, sizeof(char));
+    ssize_t              recd            = 0;
+    int                  i               = 0;
+    enum McCommandStatus status          = MC_COMMAND_STATUS_SUCCESS;
+
+    if (!line) {
+        return MC_COMMAND_STATUS_MEMORY_ERROR;
+    }
 
     send(mcConn, "stats slabs\r\n", 13, 0);
+
     while (1) {
         memset(buff, 0, BUFF_SIZE);
         recd = recv(mcConn, buff, BUFF_SIZE, 0);
-        if (recd == 0) {
+        if (recd == -1 || recd == 0) {
+            status = MC_COMMAND_STATUS_LOST_CONNECTION;
             goto end;
-        }
-
-        if (recd == -1) {
-            perror("Lost connection to memcache server\n");
-            exit(EXIT_FAILURE);
         }
 
         for (int j = 0; j < BUFF_SIZE; ++j) {
             if (buff[j] == '\r') {
                 if (strcmp(line, "END") == 0) {
-                    ++slabCount;
+                    ++*count;
                     goto end;
                 }
 
@@ -279,10 +296,13 @@ getSlabs(Slab *first, int mcConn)
 
                 if (lineSlabClass != -1 && lineSlabClass != current->class) {
                     current->next = malloc(sizeof(Slab));
+                    if (!current->next) {
+                        return MC_COMMAND_STATUS_MEMORY_ERROR;
+                    }
                     memset(current->next, 0, sizeof(Slab));
                     current = current->next;
                     current->class = lineSlabClass;
-                    ++slabCount;
+                    ++*count;
                 }
 
                 setSlabStat(current, line);
@@ -298,12 +318,11 @@ getSlabs(Slab *first, int mcConn)
 
             if (i == lineSize) {
                 line = realloc(line, lineSize + BUFF_SIZE);
+                if (!line) {
+                    return MC_COMMAND_STATUS_MEMORY_ERROR;
+                }
                 memset(line + lineSize, 0, BUFF_SIZE);
                 lineSize += BUFF_SIZE;
-                if (!line) {
-                    perror("Couldn't allocate memory when retrieving slab stats\n");
-                    exit(EXIT_FAILURE);
-                }
             }
 
             line[i] = buff[j];
@@ -313,7 +332,7 @@ getSlabs(Slab *first, int mcConn)
 
 end:
     free(line);
-    return slabCount;
+    return status;
 }
 
 /*
@@ -322,13 +341,13 @@ end:
 static void
 setStat(Stats *stats, const char const line[static 5])
 {
-    size_t length = strlen(line);
-    int    sub = 5;
-    int    i = sub;
+    size_t length        = strlen(line);
+    int    sub           = 5;
+    int    i             = sub;
     char   key[length];
     char   value[length];
 
-    memset(key, 0, length);
+    memset(key,   0, length);
     memset(value, 0, length);
 
     for (; i < length; ++i) {
@@ -444,10 +463,10 @@ setStat(Stats *stats, const char const line[static 5])
 static long
 getSlabClass(const char const line[static 5])
 {
-    int    sub = 5;
-    size_t length = strlen(line);
+    int    sub               = 5;
+    size_t length            = strlen(line);
+    bool   slabClassFound    = false;
     char   slabClass[length];
-    bool   slabClassFound = false;
 
     memset(slabClass, 0, length);
 
@@ -476,14 +495,14 @@ getSlabClass(const char const line[static 5])
 static void
 setSlabStat(Slab *slab, const char const line[static 5])
 {
-    int    sub = 5;
-    int    i = sub;
-    size_t length = strlen(line);
+    int    sub            = 5;
+    int    i              = sub;
+    size_t length         = strlen(line);
+    bool   slabClassFound = false;
     char   key[length];
     char   value[length];
-    bool   slabClassFound = false;
 
-    memset(key, 0, length);
+    memset(key,   0, length);
     memset(value, 0, length);
 
     for (; i < length; ++i) {

@@ -70,7 +70,7 @@ main(const int argc, const char *const argv[argc])
     mvwprintw(menuWin, 0, 0, "mcadmin | q: quit | f: flush all content | /: find | s: switch view");
     wrefresh(menuWin);
 
-    while (currentScreen) {
+    do {
         if (time(0) - lastDataRefresh > 3) {
             currentScreen->refreshData(currentScreen, mcConn);
             lastDataRefresh = time(0);
@@ -80,9 +80,7 @@ main(const int argc, const char *const argv[argc])
         refreshCDKWindow(menuWin);
 
         nanosleep(&loopDelay, 0);
-
-        handleAction(getch(), cdkScreen, mcConn, &currentScreen);
-    }
+    } while (handleAction(getch(), cdkScreen, mcConn, &currentScreen) != ACTION_STATUS_ERROR);
 
     exit(EXIT_SUCCESS);
 }

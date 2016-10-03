@@ -1,6 +1,6 @@
 #include "actions.h"
 
-static void
+static enum ActionStatus
 flushAllContent(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
     char *buttons[] = {"Yes", "No"};
@@ -9,19 +9,22 @@ flushAllContent(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
     if (popup(screen, 1, lines, 2, buttons) == 0) {
         flushAll(mcConn);
     }
+
+    return ACTION_STATUS_OK;
 }
 
-static void
+static enum ActionStatus
 searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
-    char key[256];
-    char *errorTextLines[1] = {""};
-    Item item               = {0};
-    int  selection;
+    char              key[256];
+    char              *errorTextLines[1] = {""};
+    Item              item               = {0};
+    enum ActionStatus status             = ACTION_STATUS_OK;
+    int               selection;
 
     textBox(screen, "Type the key to search for and press enter. Leave blank to cancel", "Key: ", key);
     if (key == 0 || strcmp(key, "") == 0) {
-        return;
+        return status;
     }
 
     switch (getItem(&item, key, mcConn)) {
@@ -41,7 +44,8 @@ searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
     if (strcmp(errorTextLines[0], "") != 0) {
         char *buttons[] = {"Close"};
         popup(screen, 1, errorTextLines, 1, buttons);
-        return;
+        status = ACTION_STATUS_ERROR;
+        return status;
     }
 
     {
@@ -72,9 +76,11 @@ searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
                     break;
                 case MC_COMMAND_STATUS_LOST_CONNECTION:
                     lines[0] = "Lost connection to memcache";
+                    status = ACTION_STATUS_ERROR;
                     break;
                 case MC_COMMAND_STATUS_MEMORY_ERROR:
                     lines[0] = "Unable to allocate memory";
+                    status = ACTION_STATUS_ERROR;
                     break;
             }
 
@@ -85,33 +91,41 @@ searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
         default:
             break;
     }
+
+    return status;
 }
 
-static void
+static enum ActionStatus
 quit(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
     *currentScreen = NULL;
     destroyCDKScreen(screen);
     endCDK();
     close(mcConn);
+
+    return ACTION_STATUS_OK;
 }
 
-static void
+static enum ActionStatus
 switchView(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
     (*currentScreen)->next->refreshData((*currentScreen)->next, mcConn);
     (*currentScreen) = (*currentScreen)->next;
     update_panels();
+
+    return ACTION_STATUS_OK;
 }
 
-static void
+static enum ActionStatus
 switchTab(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
     (*currentScreen)->currentPanel = (PANEL *) panel_userptr((*currentScreen)->currentPanel);
     top_panel((*currentScreen)->currentPanel);
+
+    return ACTION_STATUS_OK;
 }
 
-void
+enum ActionStatus
 handleAction(int action, CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
     static Action actions[] = {
@@ -128,4 +142,6 @@ handleAction(int action, CDKSCREEN *screen, int mcConn, Screen **currentScreen)
             return actions[i].execute(screen, mcConn, currentScreen);
         }
     }
+
+    return ACTION_STATUS_NO_ACTION;
 }

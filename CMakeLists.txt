@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(mcadmin)
+set(PROJECT_VERSION_MAJOR 1)
+set(PROJECT_VERSION_MINOR 0)
 
 link_libraries(
     ncurses
@@ -25,3 +27,4 @@ set(
 )
 
 add_executable(mcadmin ${SOURCE_FILES})
+install(TARGETS mcadmin DESTINATION bin)

@@ -1,14 +1,39 @@
 # mcadmin
 
-An NCurses admin UI for memcache
+Easier administration of memcache servers from the CLI. Lightweight and usable over SSH.
 
-The aim of the project is to allow for easier administration of your memcache instances using an NCurses UI which is available over SSH.
+## Features
+
+* View and delete items
+* See stats on hits/sets/etc.
+* See stats on network, memory and CPU usage
+* Invalidate all items
+* View detailed slab information
 
 ## Build
 
-Requires ncurses-dev and libcdk5-dev headers (`apt install ncurses-dev libcdk5-dev`).
+### Requirements
+
+* A C compiler
+* CMake
+* Headers for ncurses and libcdk5 (`apt install ncurses-dev libcdk5-dev`)
+
+### Installation
+
+To install globally:
 
 ```
+git clone https://github.com/mhotchen/mcadmin.git
+cd mcadmin
+cmake .
+sudo make install
+```
+
+To create an executable binary at ./mcadmin:
+
+```
+git clone https://github.com/mhotchen/mcadmin.git
+cd mcadmin
 cmake .
 make
 ```
@@ -16,9 +41,8 @@ make
 ## Run
 
 ```
-./mcadmin localhost 11211
+mcadmin localhost 11211
 ```
-
 
 ## Preview
 
@@ -45,6 +69,3 @@ Pages: amount: 3, chunks per page: 885
 Memory: max: 3143520, used: 2370000, free: 773520
 ```
 
-## Status
-
-This is currently stable enough to use, but still in active development. Pull requests and issues are very welcome.

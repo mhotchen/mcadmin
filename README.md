@@ -1,6 +1,6 @@
 # mcadmin
 
-Easier administration of memcache servers from the CLI. Lightweight and usable over SSH.
+Easy administration of memcache from the CLI. Lightweight and usable over SSH.
 
 ## Features
 

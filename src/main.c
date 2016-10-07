@@ -72,7 +72,13 @@ main(const int argc, const char *const argv[argc])
 
     do {
         if (time(0) - lastDataRefresh > 3) {
-            currentScreen->refreshData(currentScreen, mcConn);
+            if (currentScreen->refreshData(currentScreen, mcConn) != REFRESH_STATUS_OK) {
+                destroyCDKScreen(cdkScreen);
+                endCDK();
+                fprintf(stderr, "Error refreshing screen. This is likely because of a lost connection with the memcache server.\n");
+                exit(EXIT_FAILURE);
+            }
+
             lastDataRefresh = time(0);
         }
 

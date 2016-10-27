@@ -9,6 +9,7 @@
 enum ActionStatus {
     ACTION_STATUS_OK,
     ACTION_STATUS_NO_ACTION,
+    ACTION_STATUS_QUIT,
     ACTION_STATUS_ERROR
 };
 

@@ -98,18 +98,12 @@ searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 static enum ActionStatus
 quit(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
-    *currentScreen = NULL;
-    destroyCDKScreen(screen);
-    endCDK();
-    close(mcConn);
-
-    return ACTION_STATUS_OK;
+    return ACTION_STATUS_QUIT;
 }
 
 static enum ActionStatus
 switchView(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
-    (*currentScreen)->next->refreshData((*currentScreen)->next, mcConn);
     (*currentScreen) = (*currentScreen)->next;
     update_panels();
 

@@ -1,5 +1,9 @@
 #include "screens.h"
 
+Stats stats;
+Slab  slabs;
+int   slabCount;
+
 static void
 connectPanels(int panelCount, PANEL *panels[panelCount])
 {
@@ -15,7 +19,7 @@ createScreen(
     int panelCount,
     PANEL *panels[panelCount],
     Screen *next,
-    enum RefreshStatus (*refreshData)(Screen *, int)
+    void (*refreshView)(Screen *)
 )
 {
     Screen *screen = malloc(sizeof(Screen));
@@ -23,22 +27,17 @@ createScreen(
     screen->panelCount = panelCount;
     screen->panels = panels;
     screen->currentPanel = panels[0];
-    screen->refreshData = refreshData;
+    screen->refreshView = refreshView;
     screen->next = next;
     connectPanels(panelCount, screen->panels);
 
     return screen;
 }
 
-enum RefreshStatus
-refreshStatsData(Screen *screen, int mcConn)
+void
+refreshStatsView(Screen *screen)
 {
-    Stats stats = {0};
-    int   row   = 0;
-
-    if (getStats(&stats, mcConn) != MC_COMMAND_STATUS_SUCCESS) {
-        return REFRESH_STATUS_ERROR;
-    }
+    int row = 0;
 
     mvwprintw(
         screen->currentPanel->win,
@@ -107,21 +106,11 @@ refreshStatsData(Screen *screen, int mcConn)
         stats.touch_hits,
         stats.touch_misses
     );
-
-    return REFRESH_STATUS_OK;
 }
 
-enum RefreshStatus
-refreshSlabsData(Screen *screen, int mcConn)
+void
+refreshSlabsView(Screen *screen)
 {
-    Slab slab      = {0};
-    int  row       = 0;
-    int  slabCount = 0;
-
-    if (getSlabs(&slab, &slabCount, mcConn) != MC_COMMAND_STATUS_SUCCESS) {
-        return REFRESH_STATUS_ERROR;
-    }
-
     if (slabCount != screen->panelCount) {
         int x, y, w, h;
         getbegyx(screen->currentPanel->win, y, x);
@@ -139,7 +128,8 @@ refreshSlabsData(Screen *screen, int mcConn)
     }
 
     int i = 0;
-    Slab *current = &slab;
+    int  row = 0;
+    Slab *current = &slabs;
     while (current) {
         row = 0;
 
@@ -183,6 +173,4 @@ refreshSlabsData(Screen *screen, int mcConn)
         current = current->next;
         ++i;
     }
-
-    return REFRESH_STATUS_OK;
 }

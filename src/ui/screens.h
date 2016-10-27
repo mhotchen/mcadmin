@@ -5,29 +5,25 @@
 #include <malloc.h>
 #include <panel.h>
 #include "../memcache/commands.h"
-
-enum RefreshStatus {
-    REFRESH_STATUS_OK,
-    REFRESH_STATUS_ERROR
-};
+#include "../memcache/stats.h"
 
 typedef struct Screen Screen;
 struct Screen {
-    int                panelCount;
-    PANEL              **panels;
-    PANEL              *currentPanel;
-    enum RefreshStatus (*refreshData)(Screen *this, int mcConn);
-    Screen             *next;
+    int    panelCount;
+    PANEL  **panels;
+    PANEL  *currentPanel;
+    void   (*refreshView)(Screen *this);
+    Screen *next;
 };
 
 Screen *createScreen(
     int panelCount,
     PANEL *panels[panelCount],
     Screen *next,
-    enum RefreshStatus (*refreshData)(Screen *this, int mcConn)
+    void (*refreshView)(Screen *this)
 );
 
-enum RefreshStatus refreshStatsData(Screen *screen, int mcConn);
-enum RefreshStatus refreshSlabsData(Screen *screen, int mcConn);
+void refreshStatsView(Screen *screen);
+void refreshSlabsView(Screen *screen);
 
 #endif //MCADMIN_SCREENS_H

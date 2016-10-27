@@ -18,6 +18,8 @@ set(
     src/memcache/commands.c
     src/memcache/connect.c
     src/memcache/connect.h
+    src/memcache/stats.c
+    src/memcache/stats.h
     src/actions/actions.c
     src/actions/actions.h
     src/ui/modals.h

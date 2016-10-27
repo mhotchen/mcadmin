@@ -6,6 +6,7 @@
 #include <time.h>
 #include "actions/actions.h"
 #include "memcache/connect.h"
+#include "memcache/stats.h"
 #include "ui/screens.h"
 
 static void
@@ -26,6 +27,14 @@ configureCdk(CDKSCREEN *screen)
     curs_set(0);
 }
 
+static void
+cleanup(CDKSCREEN *screen, int mcConn)
+{
+    destroyCDKScreen(screen);
+    endCDK();
+    close(mcConn);
+}
+
 int
 main(const int argc, const char *const argv[argc])
 {
@@ -40,14 +49,14 @@ main(const int argc, const char *const argv[argc])
     long                  lastDataRefresh  = 0;
     PANEL                 *statsPanels[]   = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
     PANEL                 *slabsPanels[]   = {new_panel(newwin(LINES - 1, COLS, 1, 0))};
-    Screen                *statsScreen     = createScreen(1, statsPanels, NULL, &refreshStatsData);
-    Screen                *slabsScreen     = createScreen(1, slabsPanels, statsScreen, &refreshSlabsData);
+    Screen                *statsScreen     = createScreen(1, statsPanels, NULL, &refreshStatsView);
+    Screen                *slabsScreen     = createScreen(1, slabsPanels, statsScreen, &refreshSlabsView);
     struct timespec       loopDelay        = {0, 100000000};
     enum McConnectStatus  connectStatus    = connectByNetworkSocket(argv[1], argv[2], &mcConn);
+    enum ActionStatus     actionStatus     = ACTION_STATUS_NO_ACTION;
 
     if (connectStatus != MC_CONN_STATUS_SUCCESS) {
-        destroyCDKScreen(cdkScreen);
-        endCDK();
+        cleanup(cdkScreen, mcConn);
         switch (connectStatus) {
             case MC_CONN_STATUS_LOOKUP_ERROR:
                 fprintf(stderr, "Unable to find host\n");
@@ -72,21 +81,29 @@ main(const int argc, const char *const argv[argc])
 
     do {
         if (time(0) - lastDataRefresh > 3) {
-            if (currentScreen->refreshData(currentScreen, mcConn) != REFRESH_STATUS_OK) {
-                destroyCDKScreen(cdkScreen);
-                endCDK();
-                fprintf(stderr, "Error refreshing screen. This is likely because of a lost connection with the memcache server.\n");
+            if (refreshStats(mcConn) != MC_COMMAND_STATUS_SUCCESS ||
+                refreshSlabs(mcConn) != MC_COMMAND_STATUS_SUCCESS
+            ) {
+                cleanup(cdkScreen, mcConn);
+                fprintf(stderr, "Error refreshing screen, likely because the connection to memcache was lost.\n");
                 exit(EXIT_FAILURE);
             }
 
             lastDataRefresh = time(0);
+
         }
+
+        currentScreen->refreshView(currentScreen);
 
         refreshCDKWindow(currentScreen->currentPanel->win);
         refreshCDKWindow(menuWin);
 
         nanosleep(&loopDelay, 0);
-    } while (handleAction(getch(), cdkScreen, mcConn, &currentScreen) != ACTION_STATUS_ERROR);
 
-    exit(EXIT_SUCCESS);
+        actionStatus = handleAction(getch(), cdkScreen, mcConn, &currentScreen);
+    } while (actionStatus == ACTION_STATUS_NO_ACTION || actionStatus == ACTION_STATUS_OK);
+
+    cleanup(cdkScreen, mcConn);
+
+    exit(actionStatus == ACTION_STATUS_QUIT ? EXIT_SUCCESS : EXIT_FAILURE);
 }

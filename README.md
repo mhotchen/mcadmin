@@ -7,8 +7,8 @@ Easy administration of memcache from the CLI. Lightweight and usable over SSH.
 * View and delete items
 * See stats on hits/sets/etc.
 * See stats on network, memory and CPU usage
-* Invalidate all items
 * View detailed slab information
+* Invalidate all items
 
 ## Build
 

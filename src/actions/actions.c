@@ -1,18 +1,48 @@
 #include "actions.h"
 
+/**
+ * Will invalidate all existing cache entries in the memcache server we're
+ * connected to. Note that we may have lost a connection.
+ */
+enum McCommandStatus
 static enum ActionStatus
 flushAllContent(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
-    char *buttons[] = {"Yes", "No"};
-    char *lines[]   = {"Are you sure you want to invalidate all entries in your memcache instance?"};
+    char *errorTextLines[1]     = {""};
+    enum ActionStatus status    = ACTION_STATUS_OK;
+    int               selection;
 
-    if (popup(screen, 1, lines, 2, buttons) == 0) {
-        flushAll(mcConn);
+    {
+        char *buttons[] = {"Yes", "No"};
+        char *lines[]   = {"Are you sure you want to invalidate all entries in your memcache instance?"};
+
+        selection = popup(screen, 1, lines, 2, buttons);
     }
 
-    return ACTION_STATUS_OK;
+    if (selection == 0) {
+        switch (flushAll(mcConn)) {
+            case MC_COMMAND_STATUS_SUCCESS:
+                break;
+            case MC_COMMAND_STATUS_LOST_CONNECTION:
+                errorTextLines[0] = "Lost connection to memcache";
+                break;
+        }
+    }
+
+    if (strcmp(errorTextLines[0], "") != 0) {
+        char *buttons[] = {"Close"};
+        popup(screen, 1, errorTextLines, 1, buttons);
+        status = ACTION_STATUS_ERROR;
+    }
+
+    return status;
 }
 
+/**
+ * Search for, view, and/or delete a value in memcache by its key. This could
+ * result in a lost connection, or a memory error. Other types of errors (eg.
+ * item not found) are handled internally.
+ */
 static enum ActionStatus
 searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
@@ -95,12 +125,19 @@ searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
     return status;
 }
 
+/**
+ * Set action status for quitting application. Doesn't do any cleanup of its
+ * own, it just uses this status to exit the main event loop.
+ */
 static enum ActionStatus
 quit(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
     return ACTION_STATUS_QUIT;
 }
 
+/**
+ * Cycle between the screens (eg. to go from slabs to stats view).
+ */
 static enum ActionStatus
 switchView(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
@@ -110,6 +147,9 @@ switchView(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
     return ACTION_STATUS_OK;
 }
 
+/**
+ * Cycle between a screen's tabs (eg. to cycle through the slabs).
+ */
 static enum ActionStatus
 switchTab(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
@@ -119,6 +159,11 @@ switchTab(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
     return ACTION_STATUS_OK;
 }
 
+/**
+ * An action is a key that's attached to some action that may affect the
+ * screen, and/or make one/several requests to memcache. This also includes
+ * quitting the application.
+ */
 enum ActionStatus
 handleAction(int action, CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {

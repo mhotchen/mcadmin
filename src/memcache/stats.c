@@ -1,5 +1,10 @@
 #include "stats.h"
 
+/*
+ * See https://github.com/memcached/memcached/blob/master/doc/protocol.txt
+ * for detailed information on the memcached server's requests and responses.
+ */
+
 Stats stats     = {0};
 Slab  slabs     = {0};
 int   slabCount = 0;
@@ -9,6 +14,27 @@ static void setStat(const char const line[static 5]);
 static long getSlabClass(const char const line[static 5]);
 static void setSlabStat(Slab *slab, const char const line[static 5]);
 
+/**
+ * Retrieves the latest stats from memcache and places them in the external
+ * `stats` variable defined in the header.
+ *
+ * A stats request to memcache will return something like this:
+ *
+ * STAT pid 1939
+ * STAT uptime 232
+ * STAT time 1478271822
+ * STAT version 1.4.25 Ubuntu
+ * STAT libevent 2.0.21-stable
+ * ...
+ *
+ * So discard the first 5 characters from a line, capture up until the next
+ * space as what stat to set, then the rest of the line is the value.
+ *
+ * I've gone for using a string buffer with increasing memory approach over
+ * simply using fgets just because I'm not sure how long the longest line
+ * might be. Because of the buffer approach it may be possible to hit memory
+ * errors, but it's unlikely. The connection to memcache may also be lost.
+ */
 enum McStatStatus refreshStats(int mcConn)
 {
     size_t            lineSize        = BUFF_SIZE;
@@ -51,7 +77,8 @@ enum McStatStatus refreshStats(int mcConn)
                 memset(line + lineSize, 0, BUFF_SIZE);
                 lineSize += BUFF_SIZE;
                 if (!line) {
-                    return MC_STAT_STATUS_MEMORY_ERROR;
+                    status = MC_STAT_STATUS_MEMORY_ERROR;
+                    goto end;
                 }
             }
 
@@ -61,10 +88,39 @@ enum McStatStatus refreshStats(int mcConn)
     }
 
 end:
-    free(line);
+    if (line) {
+        free(line);
+    }
     return status;
 }
 
+/**
+ * Retrieves the latest data for slabs and places it in the external `slabs`
+ * variable defined in the header.
+ *
+ * A slabs request will return something like this:
+ *
+ * STAT 10:chunk_size 752
+ * STAT 10:chunks_per_page 1394
+ * STAT 10:total_pages 1
+ * STAT 10:total_chunks 1394
+ * STAT 10:used_chunks 0
+ * STAT 10:free_chunks 1394
+ * STAT 10:free_chunks_end 0
+ * ...
+ *
+ * So discard the first five characters, capture up until the colon ':' as the
+ * slab ID, then from the character after the colon to the space as the stat to
+ * set, then the rest of the line as the value.
+ *
+ * Because there could be a dynamic number of slabs this is stored as a linked
+ * list.
+ *
+ * I've gone for using a string buffer with increasing memory approach over
+ * simply using fgets just because I'm not sure how long the longest line
+ * might be. Because of the buffer approach it may be possible to hit memory
+ * errors, but it's unlikely. The connection to memcache may also be lost.
+ */
 enum McStatStatus refreshSlabs(int mcConn)
 {
     slabCount = 0;
@@ -78,7 +134,8 @@ enum McStatStatus refreshSlabs(int mcConn)
     enum McStatStatus status          = MC_STAT_STATUS_SUCCESS;
 
     if (!line) {
-        return MC_STAT_STATUS_MEMORY_ERROR;
+        status = MC_STAT_STATUS_MEMORY_ERROR;
+        goto end;
     }
 
     send(mcConn, "stats slabs\r\n", 13, 0);
@@ -107,7 +164,8 @@ enum McStatStatus refreshSlabs(int mcConn)
                 if (lineSlabClass != -1 && lineSlabClass != current->class) {
                     current->next = malloc(sizeof(Slab));
                     if (!current->next) {
-                        return MC_STAT_STATUS_MEMORY_ERROR;
+                        status = MC_STAT_STATUS_MEMORY_ERROR;
+                        goto end;
                     }
                     memset(current->next, 0, sizeof(Slab));
                     current = current->next;
@@ -129,7 +187,8 @@ enum McStatStatus refreshSlabs(int mcConn)
             if (i == lineSize) {
                 line = realloc(line, lineSize + BUFF_SIZE);
                 if (!line) {
-                    return MC_STAT_STATUS_MEMORY_ERROR;
+                    status = MC_STAT_STATUS_MEMORY_ERROR;
+                    goto end;
                 }
                 memset(line + lineSize, 0, BUFF_SIZE);
                 lineSize += BUFF_SIZE;
@@ -141,12 +200,20 @@ enum McStatStatus refreshSlabs(int mcConn)
     }
 
 end:
-    free(line);
+    if (line) {
+        free(line);
+    }
     return status;
 }
 
-/*
+/**
  * A line looks like: STAT pid 4125
+ *
+ * So discard the first five characters, use up until the next space character
+ * to determine what key to set, then the rest of the line is the value which
+ * will be converted to the right type according to the memcache protocol.
+ *
+ * This value is then stored in the extern `stats` struct.
  */
 static void
 setStat(const char const line[static 5])
@@ -173,11 +240,6 @@ setStat(const char const line[static 5])
     for (; i < length; ++i) {
         value[i - sub] = line[i];
     }
-
-    /*
-     * I'm not super happy about this duplication but my C-fu isn't good
-     * enough to find a better method
-     */
 
     if (strcmp(key, "pid") == 0) {
         stats.pid = atol(value);
@@ -270,6 +332,14 @@ setStat(const char const line[static 5])
     }
 }
 
+/**
+ * Given a line like the following: STAT 10:chunk_size 752
+ *
+ * The '10' before the colon ':' is the slab identifier/slab class. This
+ * function will return that that identifier as a long, or return -1 if it
+ * wasn't found (when getting slab stats there are some additional statistics
+ * around slabs in general that aren't attached to a particular slab).
+ */
 static long
 getSlabClass(const char const line[static 5])
 {
@@ -296,11 +366,18 @@ getSlabClass(const char const line[static 5])
     return atol(slabClass);
 }
 
-/*
+/**
  * A line looks like: STAT 7:chunk_size 384
  * or:                STAT active_slabs 4
  *
  * We disregard the second type of stat because it's not related to a slab
+ *
+ * The first five characters can be skipped, from there until the colon is the
+ * slab class, which again can be skipped, then after the colon until the next
+ * space is the key, then from there until the end of the line is the value
+ * which is converted to the right type according to the memcache protocol.
+ *
+ * This value is then stored in the slab passed in.
  */
 static void
 setSlabStat(Slab *slab, const char const line[static 5])
@@ -327,7 +404,6 @@ setSlabStat(Slab *slab, const char const line[static 5])
     if (!slabClassFound) {
         return;
     }
-
 
     for (; i < length; ++i) {
         if (line[i] == ' ') {

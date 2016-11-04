@@ -1,5 +1,9 @@
 #include "connect.h"
 
+/**
+ * Uses getaddrinfo, socket, and connect to connect to a memcache host. This
+ * could fail at the name lookup or connect phase.
+ */
 enum McConnectStatus
 connectByNetworkSocket(const char *const name, const char *const port, int *sockfd) {
     struct addrinfo hints  = {0};

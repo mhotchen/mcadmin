@@ -1,5 +1,9 @@
 #include "commands.h"
 
+/**
+ * Will invalidate all existing cache entries in the memcache server we're
+ * connected to. Note that we may have lost a connection.
+ */
 enum McCommandStatus
 flushAll(int mcConn)
 {
@@ -16,7 +20,7 @@ flushAll(int mcConn)
     return MC_COMMAND_STATUS_SUCCESS;
 }
 
-/*
+/**
  * An item looks like: VALUE test 0 4\r\nTEST\r\nEND
  * where:
  * test = the key
@@ -25,6 +29,14 @@ flushAll(int mcConn)
  * TEST = actual data which may be multi-line and could contain the string
  *        \r\nEND\r\n at the end so the content length is important
  *
+ * Because the data might be very large, we don't store the whole thing instead
+ * going up to MAX_CONTENT_LENGTH in bytes. Instead of being simple and
+ * allocating MAX_CONTENT_LENGTH on every request, I instead start at BUFF_SIZE
+ * and increase allocation until MAX_CONTENT_LENGTH if necessary. This reduces
+ * the memory footprint quite a lot in situations where most values are
+ * smaller than MAX_CONTENT_LENGTH (which I estimate to be most situations)
+ * but it does add the risk of memory errors occuring. We may also lose the
+ * memcache connection.
  */
 enum McCommandStatus
 getItem(Item *item, const char const key[static 1], int mcConn)
@@ -88,7 +100,8 @@ getItem(Item *item, const char const key[static 1], int mcConn)
                 if (i == segmentSize) {
                     segment = realloc(segment, segmentSize + BUFF_SIZE);
                     if (!segment) {
-                        return MC_COMMAND_STATUS_MEMORY_ERROR;
+                        status = MC_COMMAND_STATUS_MEMORY_ERROR;
+                        goto end;
                     }
                     memset(segment + segmentSize, 0, BUFF_SIZE);
                     segmentSize += BUFF_SIZE;
@@ -111,7 +124,8 @@ getItem(Item *item, const char const key[static 1], int mcConn)
                 if (i == segmentSize) {
                     segment = realloc(segment, segmentSize + BUFF_SIZE);
                     if (!segment) {
-                        return MC_COMMAND_STATUS_MEMORY_ERROR;
+                        status = MC_COMMAND_STATUS_MEMORY_ERROR;
+                        goto end;
                     }
                     memset(segment + segmentSize, 0, BUFF_SIZE);
                     segmentSize += BUFF_SIZE;
@@ -144,7 +158,8 @@ getItem(Item *item, const char const key[static 1], int mcConn)
                 if (i == segmentSize) {
                     segment = realloc(segment, segmentSize + BUFF_SIZE);
                     if (!segment) {
-                        return MC_COMMAND_STATUS_MEMORY_ERROR;
+                        status = MC_COMMAND_STATUS_MEMORY_ERROR;
+                        goto end;
                     }
                     memset(segment + segmentSize, 0, BUFF_SIZE);
                     segmentSize += BUFF_SIZE;
@@ -162,14 +177,22 @@ getItem(Item *item, const char const key[static 1], int mcConn)
     }
 
 end:
-    free(segment);
+    if (segment) {
+        free(segment);
+    }
 
-    memcpy(item->key, key, keyLength);
-    item->key[keyLength] = '\0';
+    if (contentSet) {
+        memcpy(item->key, key, keyLength);
+        item->key[keyLength] = '\0';
+    }
 
     return status;
 }
 
+/**
+ * Deletes an item from the memcache server. Note we may have lost the
+ * connection, or the item might not exist.
+ */
 enum McCommandStatus
 deleteItem(const char const key[static 1], int mcConn)
 {

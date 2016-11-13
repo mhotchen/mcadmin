@@ -112,13 +112,13 @@ refreshStatsView(Screen *screen)
         screen->currentPanel->win,
         row++,
         0,
-        "Memory       used: %.1f %s, available: %.1f %s                                                               ",
-
-        (float) stats.bytes / getByteMeasurement(stats.bytes).size,
-        getByteMeasurement(stats.bytes).name,
+        "Memory       total: %.1f %s, used: %.1f %s                                                                  ",
 
         (float) stats.limit_maxbytes / getByteMeasurement(stats.limit_maxbytes).size,
-        getByteMeasurement(stats.limit_maxbytes).name
+        getByteMeasurement(stats.limit_maxbytes).name,
+
+        (float) stats.bytes / getByteMeasurement(stats.bytes).size,
+        getByteMeasurement(stats.bytes).name
     );
     mvwprintw(
         screen->currentPanel->win,
@@ -206,10 +206,9 @@ refreshSlabsView(Screen *screen)
             screen->panels[i]->win,
             row++,
             0,
-            "Chunks  amount: %ld, used: %ld, free: %ld, size: %.1f %s                                                 ",
+            "Chunks  total: %ld, used: %ld, size: %.1f %s                                                            ",
             current->total_chunks,
             current->used_chunks,
-            current->free_chunks,
 
             (float) current->chunk_size / getByteMeasurement(current->chunk_size).size,
             getByteMeasurement(current->chunk_size).name
@@ -218,28 +217,24 @@ refreshSlabsView(Screen *screen)
             screen->panels[i]->win,
             row++,
             0,
-            "Pages   amount: %ld, chunks per page: %ld                                                                ",
+            "Pages   total: %ld, chunks per page: %ld                                                                ",
             current->total_pages,
             current->chunks_per_page
         );
 
         long maxMemory = current->total_chunks * current->chunk_size;
-        long freeMemory = maxMemory - current->mem_requested;
 
         mvwprintw(
             screen->panels[i]->win,
             row++,
             0,
-            "Memory  amount: %.1f %s, used: %.1f %s, free: %.1f %s                                                    ",
+            "Memory  total: %.1f %s, used: %.1f %s                                                                   ",
 
             (float) maxMemory / getByteMeasurement(maxMemory).size,
             getByteMeasurement(maxMemory).name,
 
             (float) current->mem_requested / getByteMeasurement(current->mem_requested).size,
-            getByteMeasurement(current->mem_requested).name,
-
-            (float) freeMemory / getByteMeasurement(freeMemory).size,
-            getByteMeasurement(freeMemory).name
+            getByteMeasurement(current->mem_requested).name
         );
 
         current = current->next;

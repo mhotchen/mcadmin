@@ -7,7 +7,7 @@
 static enum ActionStatus
 flushAllContent(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
-    char *errorTextLines[1]     = {""};
+    char *messageTextLines[1]   = {""};
     enum ActionStatus status    = ACTION_STATUS_OK;
     int               selection;
 
@@ -21,18 +21,17 @@ flushAllContent(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
     if (selection == 0) {
         switch (flushAll(mcConn)) {
             case MC_COMMAND_STATUS_SUCCESS:
+                messageTextLines[0] = "All keys invalidated";
                 break;
             case MC_COMMAND_STATUS_LOST_CONNECTION:
-                errorTextLines[0] = "Lost connection to memcache";
+                messageTextLines[0] = "Lost connection to memcache";
+                status = ACTION_STATUS_ERROR;
                 break;
         }
     }
 
-    if (strcmp(errorTextLines[0], "") != 0) {
-        char *buttons[] = {"Close"};
-        popup(screen, 1, errorTextLines, 1, buttons);
-        status = ACTION_STATUS_ERROR;
-    }
+    char *buttons[] = {"Close"};
+    popup(screen, 1, messageTextLines, 1, buttons);
 
     return status;
 }

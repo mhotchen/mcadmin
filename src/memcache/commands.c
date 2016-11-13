@@ -10,7 +10,7 @@ flushAll(int mcConn)
     ssize_t recd            = 0;
     char    buff[BUFF_SIZE];
 
-    send(mcConn, "flush_all noreply\r\n", 19, 0);
+    send(mcConn, "flush_all\r\n", 11, 0);
     recd = recv(mcConn, buff, BUFF_SIZE, 0);
 
     if (recd == -1 || recd == 0) {

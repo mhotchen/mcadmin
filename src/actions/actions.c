@@ -4,7 +4,6 @@
  * Will invalidate all existing cache entries in the memcache server we're
  * connected to. Note that we may have lost a connection.
  */
-enum McCommandStatus
 static enum ActionStatus
 flushAllContent(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
 {
@@ -65,16 +64,17 @@ searchForKey(CDKSCREEN *screen, int mcConn, Screen **currentScreen)
             break;
         case MC_COMMAND_STATUS_LOST_CONNECTION:
             errorTextLines[0] = "Lost connection to memcache";
+            status = ACTION_STATUS_ERROR;
             break;
         case MC_COMMAND_STATUS_MEMORY_ERROR:
             errorTextLines[0] = "Unable to allocate memory";
+            status = ACTION_STATUS_ERROR;
             break;
     }
 
     if (strcmp(errorTextLines[0], "") != 0) {
         char *buttons[] = {"Close"};
         popup(screen, 1, errorTextLines, 1, buttons);
-        status = ACTION_STATUS_ERROR;
         return status;
     }
 

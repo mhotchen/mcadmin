@@ -136,9 +136,10 @@ refreshStatsView(Screen *screen)
         screen->currentPanel->win,
         row++,
         0,
-        "Connections  current: %ld, total: %ld                                                                        ",
+        "Connections  current: %ld, total: %ld, dropped: %ld                                                          ",
         stats.curr_connections,
-        stats.total_connections
+        stats.total_connections,
+        stats.listen_disabled_num
     );
     mvwprintw(
         screen->currentPanel->win,

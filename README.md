@@ -10,6 +10,15 @@ Easy administration of memcache from the CLI. Lightweight and usable over SSH.
 * View detailed slab information
 * Invalidate all items
 
+## Install
+
+If you're using linux on either a 32 bit or 64 bit computer then check out the
+Releases tab. Otherwise you can build it yourself.
+
+From the Releases tab you can download a binary for your system architecture
+then simply mark it as executable and place wherever suits you best (eg.
+/usr/bin)
+
 ## Build
 
 ### Requirements
@@ -17,8 +26,6 @@ Easy administration of memcache from the CLI. Lightweight and usable over SSH.
 * A C compiler
 * CMake
 * Headers for ncurses and libcdk5 (`apt install ncurses-dev libcdk5-dev`)
-
-### Installation
 
 To install globally:
 
